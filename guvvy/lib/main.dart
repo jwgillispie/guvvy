@@ -1,24 +1,47 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:guvvy/features/representatives/screens/home_screen.dart';
-import 'package:guvvy/features/representatives/screens/main_navigation_screen.dart';
-import 'package:guvvy/features/representatives/screens/representatives_details_screen.dart';
+import 'package:guvvy/core/routes/custom_page_routes.dart';
+import 'package:guvvy/features/representatives/screens/representative_details_screen.dart';
 import 'package:guvvy/features/representatives/screens/representatives_list_screen.dart';
-import 'package:http/http.dart' as http;
+import 'package:guvvy/features/search/presentation/screens/search_screen.dart';
 
-// Feature imports
-import 'features/representatives/domain/bloc/representatives_bloc.dart';
-import 'features/representatives/domain/repositories/representatives_repository.dart';
-import 'features/representatives/domain/usecases/get_representatives.dart';
-import 'features/representatives/domain/usecases/get_representative_details.dart';
-import 'features/representatives/domain/usecases/save_representative.dart';
-import 'features/representatives/domain/usecases/get_saved_representatives.dart';
-import 'features/representatives/domain/usecases/remove_saved_representative.dart';
-import 'features/representatives/data/repositories/representatives_repository_impl.dart';
-import 'features/representatives/data/datasources/representatives_remote_datasource.dart';
+// ... existing imports
 
-import 'config/theme.dart';
+class AppRouter {
+  static Route<dynamic> generateRoute(RouteSettings settings) {
+    switch (settings.name) {
+      case '/':
+        return FadeScaleRoute(
+          page: const MainNavigationScreen(),
+        );
+      case '/search':
+        return SlideUpRoute(
+          page: const SearchScreen(),
+        );
+      case '/representatives':
+        return FadeScaleRoute(
+          page: const RepresentativesListScreen(),
+        );
+      case '/representative-details':
+        final String representativeId = 
+          settings.arguments as String;
+        return SlideUpRoute(
+          page: RepresentativeDetailsScreen(
+            representativeId: representativeId,
+          ),
+        );
+      default:
+        return MaterialPageRoute(
+          builder: (_) => Scaffold(
+            body: Center(
+              child: Text('No route defined for ${settings.name}'),
+            ),
+          ),
+        );
+    }
+  }
+}
 
 void main() {
   runApp(const MyApp());
@@ -29,46 +52,21 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final remoteDataSource = RepresentativesRemoteDataSourceImpl(
-      client: http.Client(),
-      baseUrl: 'https://your-api-url.com',
-    );
+    // Repositories and BLoCs setup...
     
-    final repository = RepresentativesRepositoryImpl(remoteDataSource);
-
     return MultiRepositoryProvider(
       providers: [
-        RepositoryProvider<RepresentativesRepository>(
-          create: (context) => repository,
-        ),
+        // Your repository providers...
       ],
       child: MultiBlocProvider(
         providers: [
-          BlocProvider<RepresentativesBloc>(
-            create: (context) => RepresentativesBloc(
-              getRepresentativesByLocation: GetRepresentativesByLocation(repository),
-              getRepresentativeDetails: GetRepresentativeDetails(repository),
-              saveRepresentative: SaveRepresentative(repository),
-              getSavedRepresentatives: GetSavedRepresentatives(repository),
-              removeSavedRepresentative: RemoveSavedRepresentative(repository),
-            ),
-          ),
+          // Your BLoC providers...
         ],
         child: MaterialApp(
           title: 'Civic Engagement App',
-          theme: AppTheme.light,
-          darkTheme: AppTheme.dark,
-          themeMode: ThemeMode.system,
-          home: const MainNavigationScreen(),
-          routes: {
-            '/representative-details': (context) {
-              final String representativeId = 
-                ModalRoute.of(context)!.settings.arguments as String;
-              return RepresentativeDetailsScreen(
-                representativeId: representativeId,
-              );
-            },
-          },
+          theme: GuvvyTheme.light(),
+          onGenerateRoute: AppRouter.generateRoute,
+          initialRoute: '/',
         ),
       ),
     );

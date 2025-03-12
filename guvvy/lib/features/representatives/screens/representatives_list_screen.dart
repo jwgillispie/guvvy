@@ -4,8 +4,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:guvvy/features/representatives/domain/bloc/representatives_bloc.dart';
 import 'package:guvvy/features/representatives/domain/bloc/representatives_event.dart';
 import 'package:guvvy/features/representatives/domain/bloc/representatives_state.dart';
-import 'package:guvvy/features/representatives/presentation/widgets/representatives_card.dart';
-import '../../../core/widgets/loading_widget.dart';
+import 'package:guvvy/features/representatives/presentation/widgets/enhanced_representative_card.dart';
+import 'package:guvvy/core/widgets/loading_widget.dart';
+import 'package:guvvy/core/widgets/error_widget.dart';
 
 class RepresentativesListScreen extends StatefulWidget {
   const RepresentativesListScreen({Key? key}) : super(key: key);
@@ -14,23 +15,43 @@ class RepresentativesListScreen extends StatefulWidget {
   State<RepresentativesListScreen> createState() => _RepresentativesListScreenState();
 }
 
-class _RepresentativesListScreenState extends State<RepresentativesListScreen> {
+class _RepresentativesListScreenState extends State<RepresentativesListScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  
   @override
   void initState() {
     super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    
     // Load representatives when screen is mounted
     context.read<RepresentativesBloc>().add(
-      const LoadRepresentatives(latitude: 37.7749, longitude: -122.4194), // Example coordinates
+      const LoadRepresentatives(latitude: 37.7749, longitude: -122.4194),
     );
+  }
+  
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Your Representatives'),
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.filter_list),
+            onPressed: () {
+              // Show filter dialog
+            },
+          ),
+        ],
       ),
       body: BlocBuilder<RepresentativesBloc, RepresentativesState>(
         builder: (context, state) {
@@ -39,26 +60,66 @@ class _RepresentativesListScreenState extends State<RepresentativesListScreen> {
           }
           
           if (state is RepresentativesLoaded) {
+            // Start staggered animation when data is loaded
+            _animationController.forward();
+            
             if (state.representatives.isEmpty) {
-              return Center(
-                child: Text(
-                  'No representatives found',
-                  style: theme.textTheme.bodyLarge,
-                ),
+              return const Center(
+                child: Text('No representatives found'),
               );
             }
 
-            return ListView.builder(
+            return AnimatedList(
               padding: const EdgeInsets.all(16),
-              itemCount: state.representatives.length,
-              itemBuilder: (context, index) {
+              initialItemCount: state.representatives.length,
+              itemBuilder: (context, index, animation) {
                 final representative = state.representatives[index];
-                return RepresentativeCard(
-                  representative: representative,
-                  onTap: () => Navigator.pushNamed(
-                    context,
-                    '/representative-details',
-                    arguments: representative.id,
+                final isSaved = state.savedRepresentatives.any(
+                  (rep) => rep.id == representative.id,
+                );
+                
+                // Create a staggered fade-in and slide-up animation
+                final staggeredAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+                  CurvedAnimation(
+                    parent: animation,
+                    curve: Interval(
+                      index * 0.1, // Stagger start times
+                      1.0,
+                      curve: Curves.easeOut,
+                    ),
+                  ),
+                );
+                
+                return FadeTransition(
+                  opacity: staggeredAnimation,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, 0.2),
+                      end: Offset.zero,
+                    ).animate(staggeredAnimation),
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: EnhancedRepresentativeCard(
+                        representative: representative,
+                        isSaved: isSaved,
+                        onTap: () => Navigator.pushNamed(
+                          context,
+                          '/representative-details',
+                          arguments: representative.id,
+                        ),
+                        onSave: () {
+                          if (isSaved) {
+                            context.read<RepresentativesBloc>().add(
+                              UnsaveRepresentativeEvent(representative.id),
+                            );
+                          } else {
+                            context.read<RepresentativesBloc>().add(
+                              SaveRepresentativeEvent(representative.id),
+                            );
+                          }
+                        },
+                      ),
+                    ),
                   ),
                 );
               },
@@ -66,23 +127,13 @@ class _RepresentativesListScreenState extends State<RepresentativesListScreen> {
           }
           
           if (state is RepresentativesError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.error_outline, 
-                    size: 48, 
-                    color: theme.colorScheme.error
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Error: ${state.message}',
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: theme.colorScheme.error,
-                    ),
-                  ),
-                ],
-              ),
+            return ErrorMessageWidget(
+              message: state.message,
+              onRetry: () {
+                context.read<RepresentativesBloc>().add(
+                  const LoadRepresentatives(latitude: 37.7749, longitude: -122.4194),
+                );
+              },
             );
           }
 

@@ -1,52 +1,70 @@
 // lib/features/representatives/data/repositories/representatives_repository_impl.dart
-import 'package:guvvy/core/services/mock_data_service.dart';
-import '../../domain/repositories/representatives_repository.dart';
-import '../../domain/entities/representative.dart';
+import 'package:guvvy/features/representatives/domain/repositories/representatives_repository.dart';
+import 'package:guvvy/features/representatives/domain/entities/representative.dart';
 import '../datasources/representatives_remote_datasource.dart';
+import '../datasources/representatives_local_datasource.dart';
 
 class RepresentativesRepositoryImpl implements RepresentativesRepository {
   final RepresentativesRemoteDataSource remoteDataSource;
+  final RepresentativesLocalDataSource localDataSource;
 
-  RepresentativesRepositoryImpl(this.remoteDataSource);
-
-  @override
-  Future<List<Representative>> getRepresentativesByLocation(
-    double latitude,
-    double longitude,
-  ) async {
-    // For mock data, we'll ignore the coordinates
-    return Future.delayed(
-      const Duration(seconds: 1),
-      () => MockDataService.getMockRepresentatives(),
-    );
-  }
+  RepresentativesRepositoryImpl({
+    required this.remoteDataSource,
+    required this.localDataSource,
+  });
 
   @override
-  Future<Representative> getRepresentativeById(String id) async {
-    final allReps = MockDataService.getMockRepresentatives();
-    return Future.delayed(
-      const Duration(milliseconds: 500),
-      () => allReps.firstWhere((rep) => rep.id == id),
-    );
+  Future<List<Representative>> getRepresentativesByLocation(double latitude, double longitude) async {
+    try {
+      // Try to fetch from remote API first
+      final representatives = await remoteDataSource.getRepresentativesByLocation(latitude, longitude);
+      
+      // Cache results locally for offline access
+      await localDataSource.cacheRepresentatives(representatives);
+      
+      return representatives;
+    } catch (e) {
+      // If remote fetch fails, try to get from local cache
+      final cachedRepresentatives = await localDataSource.getLastRepresentatives();
+      if (cachedRepresentatives.isNotEmpty) {
+        return cachedRepresentatives;
+      }
+      
+      // If no cached data, rethrow the error
+      rethrow;
+    }
   }
 
   @override
   Future<List<Representative>> getSavedRepresentatives() async {
-    return Future.delayed(
-      const Duration(milliseconds: 500),
-      () => MockDataService.getMockSavedRepresentatives(),
-    );
+    return localDataSource.getSavedRepresentatives();
   }
 
   @override
   Future<void> saveRepresentative(String representativeId) async {
-    // In a real app, this would save to local storage or backend
-    await Future.delayed(const Duration(milliseconds: 500));
+    await localDataSource.saveRepresentative(representativeId);
   }
 
   @override
   Future<void> removeSavedRepresentative(String representativeId) async {
-    // In a real app, this would remove from local storage or backend
-    await Future.delayed(const Duration(milliseconds: 500));
+    await localDataSource.removeSavedRepresentative(representativeId);
+  }
+  
+  @override
+  Future<Representative> getRepresentativeById(String id) async {
+    try {
+      // Try to get from remote API
+      final representative = await remoteDataSource.getRepresentativeById(id);
+      return representative;
+    } catch (e) {
+      // Try to get from local cache if remote fails
+      final cachedRepresentative = await localDataSource.getRepresentativeById(id);
+      if (cachedRepresentative != null) {
+        return cachedRepresentative;
+      }
+      
+      // If no data found, rethrow the error
+      rethrow;
+    }
   }
 }
