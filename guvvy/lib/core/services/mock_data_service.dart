@@ -88,4 +88,68 @@ class MockDataService {
     // Return first two as "saved" representatives
     return [allReps[0], allReps[2]];
   }
+  // Add to lib/core/services/mock_data_service.dart
+
+// Mock voting history for a representative
+  static List<Map<String, dynamic>> getMockVotingHistory(String repId) {
+    return [
+      {
+        'id': 'vote1',
+        'billId': 'H.R.1',
+        'billTitle': 'For the People Act',
+        'date':
+            DateTime.now().subtract(const Duration(days: 5)).toIso8601String(),
+        'result': repId.contains('1') || repId.contains('3') ? 'Yea' : 'Nay',
+        'description': 'Election reform and voting rights bill',
+      },
+      {
+        'id': 'vote2',
+        'billId': 'H.R.2',
+        'billTitle': 'Infrastructure Investment Act',
+        'date':
+            DateTime.now().subtract(const Duration(days: 12)).toIso8601String(),
+        'result': repId.contains('2') ? 'Nay' : 'Yea',
+        'description': 'Comprehensive infrastructure funding package',
+      },
+      {
+        'id': 'vote3',
+        'billId': 'S.1',
+        'billTitle': 'Healthcare Reform Act',
+        'date':
+            DateTime.now().subtract(const Duration(days: 25)).toIso8601String(),
+        'result': repId.contains('4') ? 'Present' : 'Yea',
+        'description': 'Healthcare system overhaul and funding',
+      },
+    ];
+  }
+
+// Get detailed representative data by ID
+  static RepresentativeModel getMockRepresentativeDetails(String id) {
+    // Get all reps and find the one with matching ID
+    final allReps = getMockRepresentatives();
+    try {
+      final rep = allReps.firstWhere((rep) => rep.id == id);
+
+      // Return the representative with additional details if needed
+      return rep;
+    } catch (e) {
+      // If not found, create a fallback representative
+      return RepresentativeModel(
+        id: id,
+        name: 'Unknown Representative',
+        party: 'Independent',
+        role: 'Unknown',
+        level: 'federal',
+        district: 'Unknown',
+        contact: ContactModel(
+          office: 'Unknown',
+          phone: 'Unknown',
+          email: 'unknown@example.com',
+          website: 'www.example.com',
+          socialMedia: const SocialMediaModel(),
+        ),
+        committees: ['Unknown Committee'],
+      );
+    }
+  }
 }

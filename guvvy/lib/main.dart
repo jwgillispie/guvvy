@@ -1,7 +1,9 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:guvvy/config/custom_page_routes.dart' show FadeScaleRoute, SlideUpRoute;
+import 'package:guvvy/config/custom_page_routes.dart'
+    show FadeScaleRoute, SlideUpRoute;
+import 'package:guvvy/features/representatives/data/datasources/mock_representative_datasource.dart';
 import 'package:guvvy/features/representatives/screens/search_screen.dart';
 import 'package:guvvy/features/search/domain/search_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -60,16 +62,16 @@ class AppRouter {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize SharedPreferences
   final sharedPreferences = await SharedPreferences.getInstance();
-  
+
   runApp(MyApp(sharedPreferences: sharedPreferences));
 }
 
 class MyApp extends StatelessWidget {
   final SharedPreferences sharedPreferences;
-  
+
   const MyApp({super.key, required this.sharedPreferences});
 
   @override
@@ -79,16 +81,14 @@ class MyApp extends StatelessWidget {
         // Representatives Repository
         RepositoryProvider<RepresentativesRepository>(
           create: (context) => RepresentativesRepositoryImpl(
-            remoteDataSource: RepresentativesRemoteDataSourceImpl(
-              client: http.Client(),
-              baseUrl: 'https://api.example.com', // Replace with your API URL
-            ),
+            remoteDataSource:
+                MockRepresentativeDataSource(), // Use mock data source
             localDataSource: RepresentativesLocalDataSourceImpl(
               sharedPreferences: sharedPreferences,
             ),
           ),
         ),
-        
+
         // Search Repository
         RepositoryProvider<SearchRepository>(
           create: (context) => SearchRepositoryImpl(
@@ -118,7 +118,7 @@ class MyApp extends StatelessWidget {
               ),
             ),
           ),
-          
+
           // Search BLoC
           BlocProvider<SearchBloc>(
             create: (context) => SearchBloc(

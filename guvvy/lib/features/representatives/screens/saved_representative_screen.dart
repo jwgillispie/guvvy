@@ -74,6 +74,7 @@ class _SavedRepresentativesScreenState
                 final representative = state.savedRepresentatives[index];
                 return EnhancedRepresentativeCard(
                   representative: representative,
+                  isSaved: true, // Since this is for saved representatives
                   onTap: () => Navigator.pushNamed(
                     context,
                     '/representative-details',

@@ -8,7 +8,8 @@ import 'package:guvvy/features/representatives/domain/usecases/get_saved_represe
 import 'package:guvvy/features/representatives/domain/usecases/remove_saved_representative.dart';
 import 'package:guvvy/features/representatives/domain/usecases/save_representative.dart';
 
-class RepresentativesBloc extends Bloc<RepresentativesEvent, RepresentativesState> {
+class RepresentativesBloc
+    extends Bloc<RepresentativesEvent, RepresentativesState> {
   final GetRepresentativesByLocation getRepresentativesByLocation;
   final GetRepresentativeDetails getRepresentativeDetails;
   final SaveRepresentative saveRepresentative;
@@ -51,21 +52,33 @@ class RepresentativesBloc extends Bloc<RepresentativesEvent, RepresentativesStat
     }
   }
 
+// In lib/features/representatives/domain/bloc/representatives_bloc.dart
+// Make sure your _onLoadRepresentativeDetails handler is working correctly:
+
   Future<void> _onLoadRepresentativeDetails(
     LoadRepresentativeDetails event,
     Emitter<RepresentativesState> emit,
   ) async {
     emit(RepresentativesLoading());
     try {
-      final representative = await getRepresentativeDetails(event.representativeId);
+      // Add debugging to track progress
+      print('Loading representative details for ID: ${event.representativeId}');
+
+      final representative =
+          await getRepresentativeDetails(event.representativeId);
+      print('Representative loaded: ${representative.name}');
+
       final savedRepresentatives = await getSavedRepresentatives();
-      final isSaved = savedRepresentatives.any((rep) => rep.id == event.representativeId);
+      final isSaved =
+          savedRepresentatives.any((rep) => rep.id == event.representativeId);
 
       emit(RepresentativeDetailsLoaded(
         representative: representative,
         isSaved: isSaved,
       ));
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('Error loading representative details: $e');
+      print('Stack trace: $stackTrace');
       emit(RepresentativesError(e.toString()));
     }
   }
@@ -76,7 +89,7 @@ class RepresentativesBloc extends Bloc<RepresentativesEvent, RepresentativesStat
   ) async {
     try {
       await saveRepresentative(event.representativeId);
-      
+
       if (state is RepresentativeDetailsLoaded) {
         final currentState = state as RepresentativeDetailsLoaded;
         emit(RepresentativeDetailsLoaded(
@@ -95,7 +108,7 @@ class RepresentativesBloc extends Bloc<RepresentativesEvent, RepresentativesStat
   ) async {
     try {
       await removeSavedRepresentative(event.representativeId);
-      
+
       if (state is RepresentativeDetailsLoaded) {
         final currentState = state as RepresentativeDetailsLoaded;
         emit(RepresentativeDetailsLoaded(
