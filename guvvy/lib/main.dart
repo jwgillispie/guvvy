@@ -5,6 +5,7 @@ import 'package:guvvy/config/custom_page_routes.dart'
     show FadeScaleRoute, SlideUpRoute;
 import 'package:guvvy/features/representatives/data/datasources/mock_representative_datasource.dart';
 import 'package:guvvy/features/representatives/screens/search_screen.dart';
+import 'package:guvvy/features/representatives/screens/voting_history_screen.dart';
 import 'package:guvvy/features/search/domain/search_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:guvvy/config/theme.dart';
@@ -47,6 +48,11 @@ class AppRouter {
           page: RepresentativeDetailsScreen(
             representativeId: representativeId,
           ),
+        );
+      case '/voting-history':
+        final String? representativeId = settings.arguments as String?;
+        return FadeScaleRoute(
+          page: VotingHistoryScreen(representativeId: representativeId),
         );
       default:
         return MaterialPageRoute(

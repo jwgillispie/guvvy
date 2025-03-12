@@ -46,7 +46,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           ),
           NavigationDestination(
             icon: Icon(Icons.people),
-            label: 'Representatives',
+            label: 'Reps',
           ),
           NavigationDestination(
             icon: Icon(Icons.star),

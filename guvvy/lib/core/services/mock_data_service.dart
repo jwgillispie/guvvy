@@ -88,40 +88,6 @@ class MockDataService {
     // Return first two as "saved" representatives
     return [allReps[0], allReps[2]];
   }
-  // Add to lib/core/services/mock_data_service.dart
-
-// Mock voting history for a representative
-  static List<Map<String, dynamic>> getMockVotingHistory(String repId) {
-    return [
-      {
-        'id': 'vote1',
-        'billId': 'H.R.1',
-        'billTitle': 'For the People Act',
-        'date':
-            DateTime.now().subtract(const Duration(days: 5)).toIso8601String(),
-        'result': repId.contains('1') || repId.contains('3') ? 'Yea' : 'Nay',
-        'description': 'Election reform and voting rights bill',
-      },
-      {
-        'id': 'vote2',
-        'billId': 'H.R.2',
-        'billTitle': 'Infrastructure Investment Act',
-        'date':
-            DateTime.now().subtract(const Duration(days: 12)).toIso8601String(),
-        'result': repId.contains('2') ? 'Nay' : 'Yea',
-        'description': 'Comprehensive infrastructure funding package',
-      },
-      {
-        'id': 'vote3',
-        'billId': 'S.1',
-        'billTitle': 'Healthcare Reform Act',
-        'date':
-            DateTime.now().subtract(const Duration(days: 25)).toIso8601String(),
-        'result': repId.contains('4') ? 'Present' : 'Yea',
-        'description': 'Healthcare system overhaul and funding',
-      },
-    ];
-  }
 
 // Get detailed representative data by ID
   static RepresentativeModel getMockRepresentativeDetails(String id) {
@@ -152,4 +118,67 @@ class MockDataService {
       );
     }
   }
+  // Update in lib/core/services/mock_data_service.dart
+
+// Mock voting history for a representative
+static List<Map<String, dynamic>> getMockVotingHistory(String repId) {
+  return [
+    {
+      'id': 'vote1',
+      'billId': 'H.R. 1234',
+      'billTitle': 'Infrastructure Investment and Jobs Act',
+      'date': DateTime.now().subtract(const Duration(days: 5)).toIso8601String(),
+      'result': repId.contains('1') || repId.contains('3') ? 'Yea' : 'Nay',
+      'description': 'Comprehensive legislation to rebuild roads, bridges, and other infrastructure.',
+    },
+    {
+      'id': 'vote2',
+      'billId': 'S. 935',
+      'billTitle': 'Clean Energy Innovation Act',
+      'date': DateTime.now().subtract(const Duration(days: 12)).toIso8601String(),
+      'result': repId.contains('2') ? 'Nay' : 'Yea',
+      'description': 'Bill to fund research and development of clean energy technologies.',
+    },
+    {
+      'id': 'vote3',
+      'billId': 'H.R. 3076',
+      'billTitle': 'Postal Service Reform Act',
+      'date': DateTime.now().subtract(const Duration(days: 25)).toIso8601String(),
+      'result': repId.contains('4') ? 'Present' : 'Yea',
+      'description': 'Legislation to improve the financial condition of the USPS.',
+    },
+    {
+      'id': 'vote4',
+      'billId': 'S. 2938',
+      'billTitle': 'Bipartisan Safer Communities Act',
+      'date': DateTime.now().subtract(const Duration(days: 42)).toIso8601String(),
+      'result': repId == '1' ? 'Yea' : repId == '2' ? 'Nay' : 'Present',
+      'description': 'Gun violence prevention and mental health funding legislation.',
+    },
+    {
+      'id': 'vote5',
+      'billId': 'H.R. 7900',
+      'billTitle': 'National Defense Authorization Act',
+      'date': DateTime.now().subtract(const Duration(days: 65)).toIso8601String(),
+      'result': repId.contains('2') || repId.contains('4') ? 'Yea' : 'Nay',
+      'description': 'Annual defense policy bill that authorizes defense spending.',
+    },
+    {
+      'id': 'vote6',
+      'billId': 'S. 4357',
+      'billTitle': 'Veterans Health Care Act',
+      'date': DateTime.now().subtract(const Duration(days: 78)).toIso8601String(),
+      'result': 'Yea', // Unanimous
+      'description': 'Expands healthcare benefits for veterans exposed to toxic substances.',
+    },
+    {
+      'id': 'vote7',
+      'billId': 'H.R. 5376',
+      'billTitle': 'Inflation Reduction Act',
+      'date': DateTime.now().subtract(const Duration(days: 93)).toIso8601String(),
+      'result': repId.contains('1') || repId.contains('3') ? 'Yea' : 'Nay',
+      'description': 'Climate change, tax reform, and healthcare legislation.',
+    },
+  ];
+}
 }
