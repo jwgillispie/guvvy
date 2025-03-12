@@ -217,7 +217,7 @@ class EnhancedRepresentativeCard extends StatelessWidget {
                 ),
               ],
 
-              // Stats and action
+              // Action button
               Padding(
                 padding: const EdgeInsets.only(top: 16),
                 child: Row(

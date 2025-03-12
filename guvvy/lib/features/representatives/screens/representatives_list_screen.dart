@@ -4,9 +4,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:guvvy/features/representatives/domain/bloc/representatives_bloc.dart';
 import 'package:guvvy/features/representatives/domain/bloc/representatives_event.dart';
 import 'package:guvvy/features/representatives/domain/bloc/representatives_state.dart';
-import 'package:guvvy/features/representatives/presentation/widgets/enhanced_representative_card.dart';
 import 'package:guvvy/core/widgets/loading_widget.dart';
 import 'package:guvvy/core/widgets/error_widget.dart';
+import 'package:guvvy/features/representatives/presentation/widgets/representatives_card.dart';
 
 class RepresentativesListScreen extends StatefulWidget {
   const RepresentativesListScreen({Key? key}) : super(key: key);

@@ -11,10 +11,12 @@ class SavedRepresentativesScreen extends StatefulWidget {
   const SavedRepresentativesScreen({Key? key}) : super(key: key);
 
   @override
-  State<SavedRepresentativesScreen> createState() => _SavedRepresentativesScreenState();
+  State<SavedRepresentativesScreen> createState() =>
+      _SavedRepresentativesScreenState();
 }
 
-class _SavedRepresentativesScreenState extends State<SavedRepresentativesScreen> {
+class _SavedRepresentativesScreenState
+    extends State<SavedRepresentativesScreen> {
   @override
   void initState() {
     super.initState();
@@ -70,13 +72,18 @@ class _SavedRepresentativesScreenState extends State<SavedRepresentativesScreen>
               itemCount: state.savedRepresentatives.length,
               itemBuilder: (context, index) {
                 final representative = state.savedRepresentatives[index];
-                return RepresentativeCard(
+                return EnhancedRepresentativeCard(
                   representative: representative,
                   onTap: () => Navigator.pushNamed(
                     context,
                     '/representative-details',
                     arguments: representative.id,
                   ),
+                  onSave: () {
+                    context.read<RepresentativesBloc>().add(
+                          UnsaveRepresentativeEvent(representative.id),
+                        );
+                  },
                 );
               },
             );
@@ -87,10 +94,8 @@ class _SavedRepresentativesScreenState extends State<SavedRepresentativesScreen>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.error_outline, 
-                    size: 48, 
-                    color: theme.colorScheme.error
-                  ),
+                  Icon(Icons.error_outline,
+                      size: 48, color: theme.colorScheme.error),
                   const SizedBox(height: 16),
                   Text(
                     'Error: ${state.message}',

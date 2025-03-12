@@ -3,10 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:guvvy/features/representatives/domain/bloc/representatives_bloc.dart';
 import 'package:guvvy/features/representatives/domain/bloc/representatives_event.dart';
-import 'package:guvvy/features/representatives/domain/bloc/representatives_state.dart';
 import 'package:guvvy/features/representatives/presentation/widgets/address_search_field.dart';
 import 'package:guvvy/features/representatives/presentation/widgets/recent_searches.dart';
-import 'package:guvvy/features/representatives/presentation/widgets/representatives_card.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({Key? key}) : super(key: key);
