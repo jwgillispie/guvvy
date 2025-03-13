@@ -1,7 +1,8 @@
-// lib/features/representatives/presentation/widgets/enhanced_representative_card.dart
+// lib/features/representatives/presentation/widgets/representatives_card.dart
 import 'package:flutter/material.dart';
 import 'package:guvvy/config/theme.dart';
 import 'package:guvvy/features/representatives/domain/entities/representative.dart';
+import 'package:guvvy/features/representatives/presentation/widgets/position_education_widget.dart';
 
 class EnhancedRepresentativeCard extends StatelessWidget {
   final Representative representative;
@@ -124,9 +125,39 @@ class EnhancedRepresentativeCard extends StatelessWidget {
                           ],
                         ),
 
-                        Text(
-                          '${representative.role} • ${representative.party}',
-                          style: theme.textTheme.bodyMedium,
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '${representative.role} • ${representative.party}',
+                                style: theme.textTheme.bodyMedium,
+                              ),
+                            ),
+                            IconButton(
+                              icon: Icon(
+                                Icons.info_outline,
+                                color: theme.primaryColor,
+                                size: 20,
+                              ),
+                              tooltip: 'Learn about this position',
+                              constraints: const BoxConstraints(
+                                minWidth: 32,
+                                minHeight: 32,
+                              ),
+                              padding: EdgeInsets.zero,
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => PositionEducationWidget(
+                                      positionTitle: representative.role,
+                                      level: representative.level,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
                         ),
 
                         const SizedBox(height: 8),
@@ -155,6 +186,9 @@ class EnhancedRepresentativeCard extends StatelessWidget {
                   ),
                 ],
               ),
+
+              // Educational note about the position
+              _buildPositionInfoCard(context, representative.role),
 
               // Contact info
               if (representative.contact.email != null) ...[
@@ -246,5 +280,104 @@ class EnhancedRepresentativeCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildPositionInfoCard(BuildContext context, String positionTitle) {
+    // Basic position descriptions for common roles
+    final String description = _getPositionDescription(positionTitle);
+    
+    if (description.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue.shade100),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.school, size: 16, color: Colors.blue.shade700),
+              const SizedBox(width: 8),
+              Text(
+                'About this Position',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue.shade700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            description,
+            style: const TextStyle(fontSize: 13),
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PositionEducationWidget(
+                      positionTitle: positionTitle,
+                      level: representative.level,
+                    ),
+                  ),
+                );
+              },
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                'Learn More',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.blue.shade700,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getPositionDescription(String positionTitle) {
+    final String title = positionTitle.toLowerCase();
+    
+    if (title.contains('senator')) {
+      if (title.contains('state')) {
+        return 'State Senators create and vote on state laws, approve state budgets, and represent their districts at the state level.';
+      } else {
+        return 'U.S. Senators serve six-year terms in the upper chamber of Congress. They represent entire states, confirming presidential appointments and ratifying treaties.';
+      }
+    } else if (title.contains('representative') || title.contains('congressman')) {
+      if (title.contains('state')) {
+        return 'State Representatives create and vote on state laws, approve the state budget, and address state-level policy issues.';
+      } else {
+        return 'U.S. Representatives serve two-year terms in the House, the "people\'s chamber" of Congress. They represent smaller districts and initiate revenue bills.';
+      }
+    } else if (title.contains('governor')) {
+      return 'Governors are the chief executives of states, similar to the President at the federal level. They implement state laws and can issue executive orders.';
+    } else if (title.contains('mayor')) {
+      return 'Mayors are the chief executives of cities or towns. They oversee city departments, services, and represent the city officially.';
+    } else if (title.contains('council')) {
+      return 'City Council Members create local ordinances (laws), approve city budgets, set tax rates, and oversee city services.';
+    } else if (title.contains('commissioner')) {
+      return 'County Commissioners govern counties, creating county ordinances, approving budgets, and overseeing county services.';
+    }
+    
+    return '';
   }
 }

@@ -1,16 +1,13 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:guvvy/config/custom_page_routes.dart'
-    show FadeScaleRoute, SlideUpRoute;
-import 'package:guvvy/features/representatives/data/datasources/mock_representative_datasource.dart';
-import 'package:guvvy/features/representatives/screens/search_screen.dart';
-import 'package:guvvy/features/representatives/screens/voting_history_screen.dart';
-import 'package:guvvy/features/search/domain/search_repository.dart';
+import 'package:guvvy/features/representatives/screens/onboarding_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:guvvy/config/custom_page_routes.dart';
 import 'package:guvvy/config/theme.dart';
+import 'package:guvvy/features/onboarding/data/services/onboarding_manager.dart';
+import 'package:guvvy/features/representatives/data/datasources/mock_representative_datasource.dart';
 import 'package:guvvy/features/representatives/data/datasources/representatives_local_datasource.dart';
-import 'package:guvvy/features/representatives/data/datasources/representatives_remote_datasource.dart';
 import 'package:guvvy/features/representatives/data/repositories/representatives_repository_impl.dart';
 import 'package:guvvy/features/representatives/domain/bloc/representatives_bloc.dart';
 import 'package:guvvy/features/representatives/domain/repositories/representatives_repository.dart';
@@ -24,19 +21,26 @@ import 'package:guvvy/features/representatives/screens/representatives_list_scre
 import 'package:guvvy/features/representatives/screens/main_navigation_screen.dart';
 import 'package:guvvy/features/search/data/repositories/search_repository_impl.dart';
 import 'package:guvvy/features/search/domain/bloc/search_bloc.dart';
-
-import 'package:http/http.dart' as http;
+import 'package:guvvy/features/search/domain/search_repository.dart';
 
 class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
       case '/':
         return FadeScaleRoute(
-          page: const MainNavigationScreen(),
+          page: const SplashScreen(),
         );
-      case '/search':
+      case '/onboarding':
+        return FadeScaleRoute(
+          page: const OnboardingScreen(),
+        );
+      case '/address-input':
         return SlideUpRoute(
-          page: const SearchScreen(),
+          page: const AddressInputScreen(),
+        );
+      case '/home':
+        return FadeScaleRoute(
+          page: const MainNavigationScreen(),
         );
       case '/representatives':
         return FadeScaleRoute(
@@ -48,11 +52,6 @@ class AppRouter {
           page: RepresentativeDetailsScreen(
             representativeId: representativeId,
           ),
-        );
-      case '/voting-history':
-        final String? representativeId = settings.arguments as String?;
-        return FadeScaleRoute(
-          page: VotingHistoryScreen(representativeId: representativeId),
         );
       default:
         return MaterialPageRoute(
@@ -78,7 +77,7 @@ void main() async {
 class MyApp extends StatelessWidget {
   final SharedPreferences sharedPreferences;
 
-  const MyApp({super.key, required this.sharedPreferences});
+  const MyApp({Key? key, required this.sharedPreferences}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -88,7 +87,7 @@ class MyApp extends StatelessWidget {
         RepositoryProvider<RepresentativesRepository>(
           create: (context) => RepresentativesRepositoryImpl(
             remoteDataSource:
-                MockRepresentativeDataSource(), // Use mock data source
+                MockRepresentativeDataSource(), // Replace with real API when ready
             localDataSource: RepresentativesLocalDataSourceImpl(
               sharedPreferences: sharedPreferences,
             ),
@@ -138,6 +137,97 @@ class MyApp extends StatelessWidget {
           onGenerateRoute: AppRouter.generateRoute,
           initialRoute: '/',
           debugShowCheckedModeBanner: false,
+        ),
+      ),
+    );
+  }
+}
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({Key? key}) : super(key: key);
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _checkOnboardingStatus();
+  }
+
+  Future<void> _checkOnboardingStatus() async {
+    // Wait a brief moment to display splash screen
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (!mounted) return;
+
+    // Check onboarding status and navigate accordingly
+    final status = await OnboardingManager.getStatus();
+    
+    switch (status) {
+      case OnboardingStatus.needsOnboarding:
+        Navigator.of(context).pushReplacementNamed('/onboarding');
+        break;
+      case OnboardingStatus.needsAddress:
+        Navigator.of(context).pushReplacementNamed('/address-input');
+        break;
+      case OnboardingStatus.complete:
+        Navigator.of(context).pushReplacementNamed('/home');
+        break;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: GuvvyTheme.primary,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Logo placeholder - replace with your app's logo
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  'G',
+                  style: TextStyle(
+                    color: GuvvyTheme.primary,
+                    fontSize: 64,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Guvvy',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Your Civic Engagement Companion',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 48),
+            const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          ],
         ),
       ),
     );
