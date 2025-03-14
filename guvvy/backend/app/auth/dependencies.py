@@ -1,8 +1,10 @@
 # backend/app/auth/dependencies.py
+from typing import Optional
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.auth.firebase import FirebaseAuth
 from app.models.user_model import User
+
 
 # HTTP Bearer authentication scheme
 security = HTTPBearer()
