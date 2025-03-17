@@ -1,3 +1,4 @@
+// lib/features/auth/domain/bloc/auth_bloc.dart
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -78,10 +79,15 @@ class AuthError extends AuthState {
 // Auth Bloc
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository _authRepository;
+  final UserRepository _userRepository;
 
-  AuthBloc({required AuthRepository authRepository, required UserRepository userRepository})
-      : _authRepository = authRepository,
-        super(AuthInitial()) {
+  AuthBloc({
+    required AuthRepository authRepository,
+    required UserRepository userRepository,
+  }) : 
+    _authRepository = authRepository,
+    _userRepository = userRepository,
+    super(AuthInitial()) {
     on<AuthSignUpRequested>(_onSignUpRequested);
     on<AuthLoginRequested>(_onLoginRequested);
     on<AuthLogoutRequested>(_onLogoutRequested);
@@ -99,10 +105,17 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     emit(AuthLoading());
     try {
-      await _authRepository.signUp(
+      // Create user in Firebase Auth
+      final userCredential = await _authRepository.signUp(
         email: event.email,
         password: event.password,
       );
+      
+      if (userCredential.user != null) {
+        // Create user in Firestore database
+        await _userRepository.createUserFromFirebaseUser(userCredential.user!);
+      }
+      
       // No need to emit authenticated state here as the authStateChanges stream will trigger
     } catch (e) {
       emit(AuthError(message: e.toString()));
@@ -115,10 +128,21 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     emit(AuthLoading());
     try {
-      await _authRepository.signIn(
+      final userCredential = await _authRepository.signIn(
         email: event.email,
         password: event.password,
       );
+      
+      if (userCredential.user != null) {
+        // Update last login time
+        final userModel = await _userRepository.getUserById(userCredential.user!.uid);
+        if (userModel != null) {
+          await _userRepository.updateUser(
+            userModel.copyWith(lastLoginAt: DateTime.now()),
+          );
+        }
+      }
+      
       // No need to emit authenticated state here as the authStateChanges stream will trigger
     } catch (e) {
       emit(AuthError(message: e.toString()));

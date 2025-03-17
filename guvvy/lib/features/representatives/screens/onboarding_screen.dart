@@ -1,4 +1,4 @@
-// lib/features/onboarding/presentation/screens/onboarding_screen.dart
+// lib/features/representatives/screens/onboarding_screen.dart
 import 'package:flutter/material.dart';
 import 'package:guvvy/config/theme.dart';
 import 'package:guvvy/features/representatives/screens/main_navigation_screen.dart';
@@ -297,6 +297,68 @@ class _AddressInputScreenState extends State<AddressInputScreen> {
       });
     }
   }
+  
+  // Helper method to parse an address string into components
+  Map<String, String?> _parseAddress(String fullAddress) {
+    // This is a basic implementation
+    // In a production app, you'd want to use a more sophisticated address parser
+    // or integrate with a geocoding service that returns structured addresses
+    
+    try {
+      // Basic parsing for US addresses in format:
+      // Street, City, State ZIP
+      
+      final parts = fullAddress.split(',');
+      if (parts.length < 2) {
+        return {
+          'street': fullAddress,
+          'city': null,
+          'state': null,
+          'zipCode': null,
+        };
+      }
+      
+      final street = parts[0].trim();
+      
+      // Try to parse city, state, and zip
+      String? city;
+      String? state;
+      String? zipCode;
+      
+      if (parts.length >= 2) {
+        city = parts[1].trim();
+      }
+      
+      if (parts.length >= 3) {
+        // The last part might contain state and ZIP
+        final stateZip = parts[2].trim().split(' ');
+        
+        if (stateZip.length >= 1) {
+          state = stateZip[0].trim();
+        }
+        
+        if (stateZip.length >= 2) {
+          zipCode = stateZip[1].trim();
+        }
+      }
+      
+      return {
+        'street': street,
+        'city': city,
+        'state': state,
+        'zipCode': zipCode,
+      };
+    } catch (e) {
+      print('Error parsing address: $e');
+      // If parsing fails, just return the full address as the street
+      return {
+        'street': fullAddress,
+        'city': null,
+        'state': null,
+        'zipCode': null,
+      };
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -414,4 +476,3 @@ class _AddressInputScreenState extends State<AddressInputScreen> {
     );
   }
 }
-

@@ -1,44 +1,50 @@
 # backend/main.py
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import init_db
-from app.routers import auth
+from database.mongodb import init_db
 import os
-from dotenv import load_dotenv
+from routes.user_route import router as user_router
 
-# Load environment variables
-load_dotenv()
-
+# Create FastAPI app
 app = FastAPI(
     title="Guvvy API",
-    description="API for Civic Engagement App",
+    description="Backend API for Guvvy Civic Engagement App",
     version="1.0.0",
 )
 
-# Configure CORS
-origins = [
-    "http://localhost",
-    "http://localhost:3000",
-    "http://localhost:8000",
-    "http://localhost:8080",
-    # Add other origins as needed
-]
-
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],  # In production, replace with specific origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Register routers
-app.include_router(auth.router)
+# Include routers
+app.include_router(user_router)
 
+# Startup event to initialize database
 @app.on_event("startup")
-async def startup_event():
+async def startup_db_client():
     await init_db()
 
-@app.get("/", tags=["Root"])
+# Root endpoint
+@app.get("/")
 async def root():
-    return {"message": "Welcome to Guvvy API!"}
+    return {"message": "Welcome to Guvvy API"}
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    
+    # Get port from environment variable or use default
+    port = int(os.getenv("PORT", 8000))
+    
+    # Run the application
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)

@@ -8,6 +8,8 @@ import 'package:guvvy/features/auth/presentation/screens/login_screen.dart';
 import 'package:guvvy/features/auth/presentation/screens/password_reset_screen.dart';
 import 'package:guvvy/features/auth/presentation/screens/signup_screen.dart';
 import 'package:guvvy/features/representatives/screens/onboarding_screen.dart';
+import 'package:guvvy/features/users/data/repositories/user_repository.dart';
+import 'package:guvvy/features/users/domain/bloc/user_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:guvvy/config/custom_page_routes.dart';
 import 'package:guvvy/config/theme.dart';
@@ -103,7 +105,11 @@ void main() async {
     authRepository: authRepository,
   ));
 }
+// Modifications to lib/main.dart
 
+// Add these imports
+
+// Then, modify the MyApp class to use UserRepository factory
 class MyApp extends StatelessWidget {
   final SharedPreferences sharedPreferences;
   final AuthRepository authRepository;
@@ -121,6 +127,11 @@ class MyApp extends StatelessWidget {
         // Auth Repository
         RepositoryProvider<AuthRepository>.value(
           value: authRepository,
+        ),
+        
+        // User Repository - Use the factory instead of direct implementation
+        RepositoryProvider<UserRepository>(
+          create: (context) => UserRepository(),
         ),
         
         // Representatives Repository
@@ -142,14 +153,22 @@ class MyApp extends StatelessWidget {
       ],
       child: MultiBlocProvider(
         providers: [
-          // Auth BLoC
+          // Auth BLoC - Update this to include UserRepository
           BlocProvider<AuthBloc>(
             create: (context) => AuthBloc(
               authRepository: context.read<AuthRepository>(),
+              userRepository: context.read<UserRepository>(),
             ),
           ),
           
-          // Representatives BLoC
+          // User BLoC
+          BlocProvider<UserBloc>(
+            create: (context) => UserBloc(
+              userRepository: context.read<UserRepository>(),
+            ),
+          ),
+          
+          // Other BLoC providers remain the same
           BlocProvider<RepresentativesBloc>(
             create: (context) => RepresentativesBloc(
               getRepresentativesByLocation: GetRepresentativesByLocation(
@@ -170,7 +189,6 @@ class MyApp extends StatelessWidget {
             ),
           ),
 
-          // Search BLoC
           BlocProvider<SearchBloc>(
             create: (context) => SearchBloc(
               searchRepository: context.read<SearchRepository>(),
@@ -204,25 +222,31 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _checkAuthAndOnboardingStatus();
+    // For testing auth, we'll always go to login
+    _navigateToLogin();
   }
 
-  Future<void> _checkAuthAndOnboardingStatus() async {
-    // Wait a brief moment to display splash screen
-    await Future.delayed(const Duration(seconds: 2));
+  Future<void> _navigateToLogin() async {
+    // Small delay to show splash screen
+    await Future.delayed(const Duration(seconds: 1));
+    if (!mounted) return;
+    
+    // Always navigate to login for testing auth
+    Navigator.of(context).pushReplacementNamed('/login');
+  }
 
+  // Original function for reference (not used for testing)
+  Future<void> _checkAuthAndOnboardingStatus() async {
+    await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
 
-    // Get the current auth state
     final authState = context.read<AuthBloc>().state;
     
-    // If user is not authenticated, navigate to login
     if (authState is! AuthAuthenticated) {
       Navigator.of(context).pushReplacementNamed('/login');
       return;
     }
 
-    // Check onboarding status and navigate accordingly for authenticated users
     final status = await OnboardingManager.getStatus();
     
     switch (status) {
@@ -246,7 +270,7 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Logo placeholder - replace with your app's logo
+            // Logo placeholder
             Container(
               width: 120,
               height: 120,
