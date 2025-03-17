@@ -75,12 +75,16 @@ class AuthError extends AuthState {
   List<Object?> get props => [message];
 }
 
-// Auth Bloc
+// Auth Bloc// Auth Bloc
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository _authRepository;
+  final UserRepository _userRepository; // Add this line
 
-  AuthBloc({required AuthRepository authRepository, required UserRepository userRepository})
-      : _authRepository = authRepository,
+  AuthBloc({
+    required AuthRepository authRepository,
+    required UserRepository userRepository,
+  })  : _authRepository = authRepository,
+        _userRepository = userRepository, // Add this line
         super(AuthInitial()) {
     on<AuthSignUpRequested>(_onSignUpRequested);
     on<AuthLoginRequested>(_onLoginRequested);
@@ -99,12 +103,21 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     emit(AuthLoading());
     try {
-      await _authRepository.signUp(
+      // Create user in Firebase Auth
+      final userCredential = await _authRepository.signUp(
         email: event.email,
         password: event.password,
       );
+
+      if (userCredential.user != null) {
+        // Create user in database
+        await _userRepository.createUserFromFirebaseUser(userCredential.user!);
+        print("User created in database successfully"); // Add logging
+      }
+
       // No need to emit authenticated state here as the authStateChanges stream will trigger
     } catch (e) {
+      print("Error creating user: $e"); // Add error logging
       emit(AuthError(message: e.toString()));
     }
   }

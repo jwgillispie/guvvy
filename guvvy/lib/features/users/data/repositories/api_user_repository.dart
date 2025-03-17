@@ -7,7 +7,6 @@ import 'package:guvvy/features/users/domain/entities/user.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 
-
 class ApiUserRepository implements UserRepository {
   final http.Client _httpClient;
   final firebase_auth.FirebaseAuth _firebaseAuth;
@@ -15,9 +14,8 @@ class ApiUserRepository implements UserRepository {
   ApiUserRepository({
     http.Client? httpClient,
     firebase_auth.FirebaseAuth? firebaseAuth,
-  }) : 
-    _httpClient = httpClient ?? http.Client(),
-    _firebaseAuth = firebaseAuth ?? firebase_auth.FirebaseAuth.instance;
+  })  : _httpClient = httpClient ?? http.Client(),
+        _firebaseAuth = firebaseAuth ?? firebase_auth.FirebaseAuth.instance;
 
   // Helper method to get auth token
   Future<String?> _getAuthToken() async {
@@ -38,7 +36,8 @@ class ApiUserRepository implements UserRepository {
   Future<void> createUser(UserModel user) async {
     try {
       final headers = await _getAuthHeaders();
-      
+      print("Creating user in API: ${user.email}"); // Add logging
+
       final response = await _httpClient.post(
         Uri.parse(ApiConfig.usersEndpoint),
         headers: headers,
@@ -49,11 +48,15 @@ class ApiUserRepository implements UserRepository {
           'last_name': user.lastName,
         }),
       );
-      
+
+      print(
+          "API Response: ${response.statusCode} - ${response.body}"); // Add logging
+
       if (response.statusCode != 201) {
         throw Exception('Failed to create user: ${response.body}');
       }
     } catch (e) {
+      print("Error in createUser: $e"); // Add error logging
       throw Exception('Failed to create user: $e');
     }
   }
@@ -63,12 +66,12 @@ class ApiUserRepository implements UserRepository {
   Future<UserModel?> getUserById(String userId) async {
     try {
       final headers = await _getAuthHeaders();
-      
+
       final response = await _httpClient.get(
         Uri.parse(ApiConfig.userEndpoint(userId)),
         headers: headers,
       );
-      
+
       if (response.statusCode == 200) {
         return UserModel.fromJson(jsonDecode(response.body));
       } else if (response.statusCode == 404) {
@@ -88,7 +91,7 @@ class ApiUserRepository implements UserRepository {
     if (currentUser == null) {
       return null;
     }
-    
+
     return getUserById(currentUser.uid);
   }
 
@@ -97,7 +100,7 @@ class ApiUserRepository implements UserRepository {
   Future<void> updateUser(UserModel user) async {
     try {
       final headers = await _getAuthHeaders();
-      
+
       final response = await _httpClient.put(
         Uri.parse(ApiConfig.userEndpoint(user.id)),
         headers: headers,
@@ -108,7 +111,7 @@ class ApiUserRepository implements UserRepository {
           'updated_at': user.updatedAt.toIso8601String(),
         }),
       );
-      
+
       if (response.statusCode != 200) {
         throw Exception('Failed to update user: ${response.body}');
       }
@@ -122,7 +125,7 @@ class ApiUserRepository implements UserRepository {
   Future<void> updateUserAddress(String userId, Address address) async {
     try {
       final headers = await _getAuthHeaders();
-      
+
       final response = await _httpClient.put(
         Uri.parse(ApiConfig.userAddressEndpoint(userId)),
         headers: headers,
@@ -131,13 +134,15 @@ class ApiUserRepository implements UserRepository {
           'city': address.city,
           'state': address.state,
           'zip_code': address.zipCode, // Note the difference in field name
-          'coordinates': address.coordinates != null ? {
-            'latitude': address.coordinates!.latitude,
-            'longitude': address.coordinates!.longitude,
-          } : null,
+          'coordinates': address.coordinates != null
+              ? {
+                  'latitude': address.coordinates!.latitude,
+                  'longitude': address.coordinates!.longitude,
+                }
+              : null,
         }),
       );
-      
+
       if (response.statusCode != 200) {
         throw Exception('Failed to update user address: ${response.body}');
       }
@@ -151,12 +156,12 @@ class ApiUserRepository implements UserRepository {
   Future<void> deleteUser(String userId) async {
     try {
       final headers = await _getAuthHeaders();
-      
+
       final response = await _httpClient.delete(
         Uri.parse(ApiConfig.userEndpoint(userId)),
         headers: headers,
       );
-      
+
       if (response.statusCode != 204) {
         throw Exception('Failed to delete user: ${response.body}');
       }
@@ -169,12 +174,12 @@ class ApiUserRepository implements UserRepository {
   Future<UserModel> updateLoginTimestamp(String userId) async {
     try {
       final headers = await _getAuthHeaders();
-      
+
       final response = await _httpClient.post(
         Uri.parse(ApiConfig.userLoginEndpoint(userId)),
         headers: headers,
       );
-      
+
       if (response.statusCode == 200) {
         return UserModel.fromJson(jsonDecode(response.body));
       } else {
@@ -187,7 +192,8 @@ class ApiUserRepository implements UserRepository {
 
   // Create a new user from Firebase Auth User
   @override
-  Future<UserModel> createUserFromFirebaseUser(firebase_auth.User firebaseUser) async {
+  Future<UserModel> createUserFromFirebaseUser(
+      firebase_auth.User firebaseUser) async {
     try {
       // Check if user already exists
       final existingUser = await getUserById(firebaseUser.uid);
@@ -195,7 +201,7 @@ class ApiUserRepository implements UserRepository {
         // If user exists, update login timestamp
         return await updateLoginTimestamp(firebaseUser.uid);
       }
-      
+
       // Create new user model
       final user = UserModel(
         id: firebaseUser.uid,
@@ -208,7 +214,7 @@ class ApiUserRepository implements UserRepository {
         updatedAt: DateTime.now(),
         lastLoginAt: DateTime.now(),
       );
-      
+
       // Create user in database
       await createUser(user);
       return user;
