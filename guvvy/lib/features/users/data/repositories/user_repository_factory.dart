@@ -9,10 +9,6 @@ class UserRepositoryFactory {
   /// Factory method to get the appropriate user repository based on config
   static UserRepository getRepository() {
     // Switch between implementations based on config
-    if (AppConfig.useApiBackend) {
-      return ApiUserRepository() as UserRepository;
-    } else {
-      return FirebaseUserRepository() as UserRepository;
+      return FirebaseUserRepository();
     }
-  }
 }

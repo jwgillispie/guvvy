@@ -97,6 +97,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     });
   }
 
+// In lib/features/auth/domain/bloc/auth_bloc.dart
   Future<void> _onSignUpRequested(
     AuthSignUpRequested event,
     Emitter<AuthState> emit,
@@ -110,14 +111,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       );
 
       if (userCredential.user != null) {
-        // Create user in database
+        // Make sure this call works correctly
         await _userRepository.createUserFromFirebaseUser(userCredential.user!);
-        print("User created in database successfully"); // Add logging
+        print("User created in database: ${userCredential.user!.uid}");
       }
-
-      // No need to emit authenticated state here as the authStateChanges stream will trigger
     } catch (e) {
-      print("Error creating user: $e"); // Add error logging
+      print("Error signing up: $e");
       emit(AuthError(message: e.toString()));
     }
   }

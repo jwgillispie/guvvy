@@ -197,6 +197,7 @@ class ApiUserRepository implements UserRepository {
     try {
       // Check if user already exists
       final existingUser = await getUserById(firebaseUser.uid);
+      
       if (existingUser != null) {
         // If user exists, update login timestamp
         return await updateLoginTimestamp(firebaseUser.uid);

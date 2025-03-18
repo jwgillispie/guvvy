@@ -6,10 +6,10 @@ class ApiConfig {
   static const String baseUrl = 'http://localhost:8000';
   
   // API endpoints
-  static String get usersEndpoint => '$baseUrl/api/users';
+  static String get usersEndpoint => '$baseUrl/api/users/';
   static String userEndpoint(String firebaseUid) => '$usersEndpoint/$firebaseUid';
-  static String userAddressEndpoint(String firebaseUid) => '${userEndpoint(firebaseUid)}/address';
-  static String userLoginEndpoint(String firebaseUid) => '${userEndpoint(firebaseUid)}/login';
+  static String userAddressEndpoint(String firebaseUid) => '${userEndpoint(firebaseUid)}/address/';
+  static String userLoginEndpoint(String firebaseUid) => '${userEndpoint(firebaseUid)}/login/';
   
   // Representatives endpoints
   static String get representativesEndpoint => '$baseUrl/api/representatives';
