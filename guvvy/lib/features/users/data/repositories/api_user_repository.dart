@@ -2,8 +2,8 @@
 import 'dart:convert';
 import 'package:guvvy/core/config/api_config.dart';
 import 'package:guvvy/features/users/data/models/user_model.dart';
-import 'package:guvvy/features/users/data/repositories/user_repository.dart';
 import 'package:guvvy/features/users/domain/entities/user.dart';
+import 'package:guvvy/features/users/domain/repositories/user_repository.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 
@@ -197,7 +197,7 @@ class ApiUserRepository implements UserRepository {
     try {
       // Check if user already exists
       final existingUser = await getUserById(firebaseUser.uid);
-      
+
       if (existingUser != null) {
         // If user exists, update login timestamp
         return await updateLoginTimestamp(firebaseUser.uid);

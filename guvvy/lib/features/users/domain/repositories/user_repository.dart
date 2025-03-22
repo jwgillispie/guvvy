@@ -1,4 +1,4 @@
-// lib/features/user/domain/repositories/user_repository.dart
+// lib/features/users/domain/repositories/user_repository.dart
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:guvvy/features/users/data/models/user_model.dart';
 import 'package:guvvy/features/users/domain/entities/user.dart';

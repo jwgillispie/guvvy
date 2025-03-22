@@ -2,7 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:guvvy/features/auth/data/repositories/auth_repository.dart';
-import 'package:guvvy/features/users/data/repositories/user_repository.dart';
+import 'package:guvvy/features/users/domain/repositories/user_repository.dart';
 
 // Auth Events
 abstract class AuthEvent extends Equatable {

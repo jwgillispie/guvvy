@@ -8,8 +8,9 @@ import 'package:guvvy/features/auth/presentation/screens/login_screen.dart';
 import 'package:guvvy/features/auth/presentation/screens/password_reset_screen.dart';
 import 'package:guvvy/features/auth/presentation/screens/signup_screen.dart';
 import 'package:guvvy/features/representatives/screens/onboarding_screen.dart';
-import 'package:guvvy/features/users/data/repositories/user_repository.dart';
+import 'package:guvvy/features/users/data/repositories/firebase_user_repository.dart';
 import 'package:guvvy/features/users/domain/bloc/user_bloc.dart';
+import 'package:guvvy/features/users/domain/repositories/user_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:guvvy/config/custom_page_routes.dart';
 import 'package:guvvy/config/theme.dart';
@@ -131,7 +132,7 @@ class MyApp extends StatelessWidget {
         
         // User Repository - Use the factory instead of direct implementation
         RepositoryProvider<UserRepository>(
-          create: (context) => UserRepository(),
+          create: (context) => FirebaseUserRepository(),
         ),
         
         // Representatives Repository

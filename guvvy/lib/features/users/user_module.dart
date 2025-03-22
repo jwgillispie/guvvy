@@ -1,9 +1,9 @@
 // lib/features/user/user_module.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:guvvy/features/users/data/repositories/user_repository.dart';
 import 'package:guvvy/features/users/data/repositories/user_repository_factory.dart';
 import 'package:guvvy/features/users/domain/bloc/user_bloc.dart';
+import 'package:guvvy/features/users/domain/repositories/user_repository.dart';
 
 /// This class shows how to use the UserRepository in your module
 class UserModule {

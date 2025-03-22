@@ -3,8 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:guvvy/features/users/data/models/user_model.dart';
-import 'package:guvvy/features/users/data/repositories/user_repository.dart';
 import 'package:guvvy/features/users/domain/entities/user.dart';
+import 'package:guvvy/features/users/domain/repositories/user_repository.dart';
 
 // User Events
 abstract class UserEvent extends Equatable {
