@@ -9,6 +9,7 @@ import 'package:guvvy/features/auth/presentation/screens/password_reset_screen.d
 import 'package:guvvy/features/auth/presentation/screens/signup_screen.dart';
 import 'package:guvvy/features/representatives/screens/onboarding_screen.dart';
 import 'package:guvvy/features/users/data/repositories/firebase_user_repository.dart';
+import 'package:guvvy/features/users/data/repositories/user_repository_factory.dart';
 import 'package:guvvy/features/users/domain/bloc/user_bloc.dart';
 import 'package:guvvy/features/users/domain/repositories/user_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -89,7 +90,7 @@ class AppRouter {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize Firebase before any other services
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
@@ -116,7 +117,7 @@ class MyApp extends StatelessWidget {
   final AuthRepository authRepository;
 
   const MyApp({
-    Key? key, 
+    Key? key,
     required this.sharedPreferences,
     required this.authRepository,
   }) : super(key: key);
@@ -129,12 +130,12 @@ class MyApp extends StatelessWidget {
         RepositoryProvider<AuthRepository>.value(
           value: authRepository,
         ),
-        
+
         // User Repository - Use the factory instead of direct implementation
         RepositoryProvider<UserRepository>(
-          create: (context) => FirebaseUserRepository(),
+          create: (context) => UserRepositoryFactory.getRepository(),
         ),
-        
+
         // Representatives Repository
         RepositoryProvider<RepresentativesRepository>(
           create: (context) => RepresentativesRepositoryImpl(
@@ -161,14 +162,14 @@ class MyApp extends StatelessWidget {
               userRepository: context.read<UserRepository>(),
             ),
           ),
-          
+
           // User BLoC
           BlocProvider<UserBloc>(
             create: (context) => UserBloc(
               userRepository: context.read<UserRepository>(),
             ),
           ),
-          
+
           // Other BLoC providers remain the same
           BlocProvider<RepresentativesBloc>(
             create: (context) => RepresentativesBloc(
@@ -231,7 +232,7 @@ class _SplashScreenState extends State<SplashScreen> {
     // Small delay to show splash screen
     await Future.delayed(const Duration(seconds: 1));
     if (!mounted) return;
-    
+
     // Always navigate to login for testing auth
     Navigator.of(context).pushReplacementNamed('/login');
   }
@@ -242,14 +243,14 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
 
     final authState = context.read<AuthBloc>().state;
-    
+
     if (authState is! AuthAuthenticated) {
       Navigator.of(context).pushReplacementNamed('/login');
       return;
     }
 
     final status = await OnboardingManager.getStatus();
-    
+
     switch (status) {
       case OnboardingStatus.needsOnboarding:
         Navigator.of(context).pushReplacementNamed('/onboarding');
