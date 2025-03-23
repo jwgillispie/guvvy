@@ -1,4 +1,5 @@
-// lib/features/search/widgets/enhanced_address_search_field.dart
+// lib/features/search/widgets/enhanced_address_search.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:guvvy/config/theme.dart';
 import 'package:guvvy/core/services/geocoding_service.dart';
@@ -9,6 +10,7 @@ class EnhancedAddressSearchField extends StatefulWidget {
   final String? initialAddress;
   final String hintText;
   final bool autofocus;
+  final TextEditingController? controller;
 
   const EnhancedAddressSearchField({
     Key? key,
@@ -16,6 +18,7 @@ class EnhancedAddressSearchField extends StatefulWidget {
     this.initialAddress,
     this.hintText = 'Enter your address...',
     this.autofocus = false,
+    this.controller,
   }) : super(key: key);
 
   @override
@@ -24,17 +27,20 @@ class EnhancedAddressSearchField extends StatefulWidget {
 }
 
 class _EnhancedAddressSearchFieldState extends State<EnhancedAddressSearchField> {
-  final TextEditingController _controller = TextEditingController();
+  late TextEditingController _controller;
   final FocusNode _focusNode = FocusNode();
   
   bool _showResults = false;
   bool _isLoading = false;
   List<GeocodingResult> _suggestions = [];
+  Timer? _debounceTimer;
   
   @override
   void initState() {
     super.initState();
-    if (widget.initialAddress != null) {
+    _controller = widget.controller ?? TextEditingController();
+    
+    if (widget.initialAddress != null && _controller.text.isEmpty) {
       _controller.text = widget.initialAddress!;
     }
     
@@ -43,18 +49,34 @@ class _EnhancedAddressSearchFieldState extends State<EnhancedAddressSearchField>
         setState(() {
           _showResults = true;
         });
+      } else {
+        // Small delay to allow for tapping on suggestions
+        Future.delayed(const Duration(milliseconds: 200), () {
+          if (mounted) {
+            setState(() {
+              _showResults = false;
+            });
+          }
+        });
       }
     });
   }
   
   @override
   void dispose() {
-    _controller.dispose();
+    // Only dispose if we created the controller
+    if (widget.controller == null) {
+      _controller.dispose();
+    }
     _focusNode.dispose();
+    _debounceTimer?.cancel();
     super.dispose();
   }
   
   Future<void> _getSuggestions(String query) async {
+    // Cancel previous debounce timer
+    _debounceTimer?.cancel();
+    
     if (query.isEmpty) {
       setState(() {
         _suggestions = [];
@@ -63,30 +85,35 @@ class _EnhancedAddressSearchFieldState extends State<EnhancedAddressSearchField>
       return;
     }
     
-    setState(() {
-      _isLoading = true;
-    });
-    
-    try {
-      final suggestions = await GeocodingService.searchAddressSuggestions(query);
+    // Set a new debounce timer
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () async {
+      if (!mounted) return;
       
-      if (mounted) {
-        setState(() {
-          _suggestions = suggestions;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+      setState(() {
+        _isLoading = true;
+      });
+      
+      try {
+        final suggestions = await GeocodingService.searchAddressSuggestions(query);
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error fetching suggestions: $e')),
-        );
+        if (mounted) {
+          setState(() {
+            _suggestions = suggestions;
+            _isLoading = false;
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error fetching suggestions: $e')),
+          );
+        }
       }
-    }
+    });
   }
   
   Future<void> _selectAddress(GeocodingResult suggestion) async {
@@ -97,11 +124,44 @@ class _EnhancedAddressSearchFieldState extends State<EnhancedAddressSearchField>
     });
     
     try {
-      final location = await GeocodingService.getCoordinatesForAddress(
-        suggestion.description,
-      );
+      final location = await GeocodingService.getCoordinatesForPlace(suggestion.placeId);
       
       if (mounted) {
+        widget.onAddressSelected(location);
+        FocusScope.of(context).unfocus();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error getting coordinates: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+  
+  Future<void> _handleManualSubmit(String value) async {
+    if (value.isEmpty) return;
+    
+    setState(() {
+      _isLoading = true;
+      _showResults = false;
+    });
+    
+    try {
+      final location = await GeocodingService.getCoordinatesForAddress(value);
+      
+      if (mounted) {
+        // Update controller text with formatted address if available
+        if (location.formattedAddress != null) {
+          _controller.text = location.formattedAddress!;
+        }
+        
         widget.onAddressSelected(location);
         FocusScope.of(context).unfocus();
       }
@@ -144,32 +204,7 @@ class _EnhancedAddressSearchFieldState extends State<EnhancedAddressSearchField>
             decoration: InputDecoration(
               hintText: widget.hintText,
               prefixIcon: const Icon(Icons.location_on_outlined),
-              suffixIcon: _isLoading
-                  ? const Padding(
-                      padding: EdgeInsets.all(12.0),
-                      child: SizedBox(
-                        height: 24,
-                        width: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                        ),
-                      ),
-                    )
-                  : IconButton(
-                      icon: const Icon(Icons.search),
-                      onPressed: () {
-                        if (_controller.text.isNotEmpty) {
-                          _selectAddress(
-                            GeocodingResult(
-                              placeId: 'manual',
-                              description: _controller.text,
-                              primaryText: _controller.text,
-                              secondaryText: '',
-                            ),
-                          );
-                        }
-                      },
-                    ),
+              suffixIcon: _buildSuffixIcon(),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
@@ -180,6 +215,7 @@ class _EnhancedAddressSearchFieldState extends State<EnhancedAddressSearchField>
               ),
             ),
             autofocus: widget.autofocus,
+            textInputAction: TextInputAction.search,
             onChanged: (value) {
               // Only start searching after 2 characters
               if (value.length >= 2) {
@@ -190,18 +226,7 @@ class _EnhancedAddressSearchFieldState extends State<EnhancedAddressSearchField>
                 });
               }
             },
-            onSubmitted: (value) {
-              if (value.isNotEmpty) {
-                _selectAddress(
-                  GeocodingResult(
-                    placeId: 'manual',
-                    description: value,
-                    primaryText: value,
-                    secondaryText: '',
-                  ),
-                );
-              }
-            },
+            onSubmitted: _handleManualSubmit,
           ),
         ),
         
@@ -209,6 +234,7 @@ class _EnhancedAddressSearchFieldState extends State<EnhancedAddressSearchField>
         if (_showResults && _suggestions.isNotEmpty)
           Container(
             margin: const EdgeInsets.only(top: 4),
+            constraints: const BoxConstraints(maxHeight: 300),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
@@ -222,7 +248,6 @@ class _EnhancedAddressSearchFieldState extends State<EnhancedAddressSearchField>
             ),
             child: ListView.separated(
               shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
               padding: EdgeInsets.zero,
               itemCount: _suggestions.length,
               separatorBuilder: (context, index) => const Divider(height: 1),
@@ -252,6 +277,52 @@ class _EnhancedAddressSearchFieldState extends State<EnhancedAddressSearchField>
             ),
           ),
       ],
+    );
+  }
+  
+  Widget _buildSuffixIcon() {
+    if (_isLoading) {
+      return const Padding(
+        padding: EdgeInsets.all(12.0),
+        child: SizedBox(
+          height: 24,
+          width: 24,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+          ),
+        ),
+      );
+    }
+    
+    if (_controller.text.isNotEmpty) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Clear button
+          IconButton(
+            icon: const Icon(Icons.clear),
+            onPressed: () {
+              _controller.clear();
+              setState(() {
+                _suggestions = [];
+              });
+            },
+            splashRadius: 20,
+          ),
+          // Search button
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () => _handleManualSubmit(_controller.text),
+            splashRadius: 20,
+          ),
+        ],
+      );
+    }
+    
+    return IconButton(
+      icon: const Icon(Icons.search),
+      onPressed: () {},
+      splashRadius: 20,
     );
   }
 }

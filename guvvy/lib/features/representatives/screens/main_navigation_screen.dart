@@ -1,10 +1,10 @@
-// lib/features/navigation/presentation/screens/main_navigation_screen.dart
+// lib/features/representatives/screens/main_navigation_screen.dart
 import 'package:flutter/material.dart';
+import 'package:guvvy/features/profile/presentation/screens/profile_screen.dart';
 import 'package:guvvy/features/representatives/screens/home_screen.dart';
 import 'package:guvvy/features/representatives/screens/representatives_list_screen.dart';
 import 'package:guvvy/features/representatives/screens/saved_representative_screen.dart';
-import 'package:guvvy/features/representatives/screens/voting_history_screen.dart';
-
+import 'package:guvvy/features/search/screens/map_search_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({Key? key}) : super(key: key);
@@ -17,16 +17,14 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
 
   final List<Widget> _screens = [
-    const HomeScreen(),
+    const MapSearchScreen(), // Replace HomeScreen with MapSearchScreen
     const RepresentativesListScreen(),
     const SavedRepresentativesScreen(),
-    const VotingHistoryScreen(),
+    const UserProfileScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
-    Theme.of(context);
-    
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
@@ -53,8 +51,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             label: 'Saved',
           ),
           NavigationDestination(
-            icon: Icon(Icons.how_to_vote),
-            label: 'Voting',
+            icon: Icon(Icons.person),
+            label: 'Profile',
           ),
         ],
       ),

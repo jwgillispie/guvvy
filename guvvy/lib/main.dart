@@ -4,7 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:guvvy/features/onboarding/screens/address_input_screen.dart';
+import 'package:guvvy/features/profile/presentation/screens/profile_screen.dart';
+import 'package:guvvy/features/representatives/data/datasources/representatives_remote_datasource.dart';
+import 'package:guvvy/features/representatives/screens/representative_detail_with_map.dart';
 import 'package:guvvy/features/search/screens/address_search_test_screen.dart';
+import 'package:guvvy/features/search/screens/map_search_screen.dart';
 import 'package:http/http.dart' as http;
 import 'package:guvvy/features/auth/data/repositories/auth_repository.dart';
 import 'package:guvvy/features/auth/domain/bloc/auth_bloc.dart';
@@ -37,6 +41,8 @@ import 'package:guvvy/features/search/data/repositories/search_repository_impl.d
 import 'package:guvvy/features/search/domain/bloc/search_bloc.dart';
 import 'package:guvvy/features/search/domain/search_repository.dart';
 
+// Updated AppRouter class for main.dart
+// Updated AppRouter class for main.dart
 class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
@@ -68,6 +74,10 @@ class AppRouter {
         return FadeScaleRoute(
           page: const MainNavigationScreen(),
         );
+      case '/map-search':
+        return FadeScaleRoute(
+          page: const MapSearchScreen(),
+        );
       case '/representatives':
         return FadeScaleRoute(
           page: const RepresentativesListScreen(),
@@ -75,13 +85,17 @@ class AppRouter {
       case '/representative-details':
         final String representativeId = settings.arguments as String;
         return SlideUpRoute(
-          page: RepresentativeDetailsScreen(
+          page: RepresentativeDetailWithMap(
             representativeId: representativeId,
           ),
         );
       case '/test-address-search':
         return MaterialPageRoute(
           builder: (_) => const AddressSearchTestScreen(),
+        );
+      case '/profile':
+        return FadeScaleRoute(
+          page: const UserProfileScreen(),
         );
       default:
         return MaterialPageRoute(
@@ -113,31 +127,36 @@ void main() async {
   final authRepository = AuthRepository();
 
   // Create API data sources
-  final representativesApiDataSource = RepresentativesApiDataSource();
   final representativesLocalDataSource = RepresentativesLocalDataSourceImpl(
     sharedPreferences: sharedPreferences,
   );
+  // In main.dart, modify the factory code to:
+// In main.dart, modify the factory code to:
+final representativesApiDataSource = RepresentativesApiDataSource(
+  client: http.Client(),
+  civicInfoApiKey: dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '',
+);
 
   runApp(MyApp(
     sharedPreferences: sharedPreferences,
     authRepository: authRepository,
-    representativesApiDataSource: representativesApiDataSource,
     representativesLocalDataSource: representativesLocalDataSource,
+    representativesRemoteDataSource: representativesRemoteDataSource,
   ));
 }
 
 class MyApp extends StatelessWidget {
   final SharedPreferences sharedPreferences;
   final AuthRepository authRepository;
-  final RepresentativesApiDataSource representativesApiDataSource;
+  final RepresentativesRemoteDataSource representativesRemoteDataSource;
   final RepresentativesLocalDataSource representativesLocalDataSource;
 
   const MyApp({
     Key? key,
     required this.sharedPreferences,
     required this.authRepository,
-    required this.representativesApiDataSource,
     required this.representativesLocalDataSource,
+    required this.representativesRemoteDataSource,
   }) : super(key: key);
 
   @override
@@ -157,7 +176,7 @@ class MyApp extends StatelessWidget {
         // Representatives Repository
         RepositoryProvider<RepresentativesRepository>(
           create: (context) => RepresentativesRepositoryImpl(
-            remoteDataSource: representativesApiDataSource,
+            remoteDataSource: representativesRemoteDataSource,
             localDataSource: representativesLocalDataSource,
           ),
         ),
@@ -280,6 +299,7 @@ class _SplashScreenState extends State<SplashScreen> {
         break;
     }
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(

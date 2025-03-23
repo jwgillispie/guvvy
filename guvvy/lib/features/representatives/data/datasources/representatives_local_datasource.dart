@@ -14,6 +14,9 @@ abstract class RepresentativesLocalDataSource {
 
   /// Caches a list of [Representative] for offline use
   Future<void> cacheRepresentatives(List<Representative> representatives);
+  
+  /// Caches a single [Representative] for offline use
+  Future<void> cacheRepresentative(Representative representative);
 
   /// Gets the user's saved/favorite representatives
   Future<List<Representative>> getSavedRepresentatives();
@@ -92,6 +95,26 @@ class RepresentativesLocalDataSourceImpl implements RepresentativesLocalDataSour
       'CACHED_REPRESENTATIVES',
       json.encode(jsonList),
     );
+  }
+  
+  @override
+  Future<void> cacheRepresentative(Representative representative) async {
+    // Get existing cached representatives
+    final representatives = await getLastRepresentatives();
+    
+    // Check if this representative is already cached
+    final existingIndex = representatives.indexWhere((rep) => rep.id == representative.id);
+    
+    if (existingIndex >= 0) {
+      // Update existing representative
+      representatives[existingIndex] = representative;
+    } else {
+      // Add new representative
+      representatives.add(representative);
+    }
+    
+    // Cache the updated list
+    await cacheRepresentatives(representatives);
   }
 
   @override
