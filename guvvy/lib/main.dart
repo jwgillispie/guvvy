@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:guvvy/features/onboarding/screens/address_input_screen.dart';
 import 'package:guvvy/features/profile/presentation/screens/profile_screen.dart';
+import 'package:guvvy/features/representatives/data/datasources/mock_representative_datasource.dart';
 import 'package:guvvy/features/representatives/data/datasources/representatives_remote_datasource.dart';
 import 'package:guvvy/features/representatives/screens/representative_detail_with_map.dart';
 import 'package:guvvy/features/search/screens/address_search_test_screen.dart';
@@ -24,7 +25,6 @@ import 'package:guvvy/config/custom_page_routes.dart';
 import 'package:guvvy/config/theme.dart';
 import 'package:guvvy/features/onboarding/data/services/onboarding_manager.dart';
 import 'package:guvvy/firebase_options.dart';
-import 'package:guvvy/features/representatives/data/datasources/representatives_api_datasource.dart';
 import 'package:guvvy/features/representatives/data/datasources/representatives_local_datasource.dart';
 import 'package:guvvy/features/representatives/data/repositories/representatives_repository_impl.dart';
 import 'package:guvvy/features/representatives/domain/bloc/representatives_bloc.dart';
@@ -41,7 +41,6 @@ import 'package:guvvy/features/search/data/repositories/search_repository_impl.d
 import 'package:guvvy/features/search/domain/bloc/search_bloc.dart';
 import 'package:guvvy/features/search/domain/search_repository.dart';
 
-// Updated AppRouter class for main.dart
 // Updated AppRouter class for main.dart
 class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
@@ -130,12 +129,31 @@ void main() async {
   final representativesLocalDataSource = RepresentativesLocalDataSourceImpl(
     sharedPreferences: sharedPreferences,
   );
-  // In main.dart, modify the factory code to:
-// In main.dart, modify the factory code to:
-final representativesApiDataSource = RepresentativesApiDataSource(
-  client: http.Client(),
-  civicInfoApiKey: dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '',
-);
+  
+  // Use the mock data source for now
+  final representativesRemoteDataSource = MockRepresentativeDataSource();
+  
+  /* 
+  // TODO: Use this code when you're ready to switch to real API data
+  // First, make sure the RepresentativesApiDataSource class is properly defined and imported
+  final representativesRemoteDataSource = RepresentativesApiDataSource(
+    client: http.Client(),
+    civicInfoApiKey: dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '',
+  );
+  
+  // Alternatively, use the hybrid approach to gracefully fall back to mock data
+  final apiDataSource = RepresentativesApiDataSource(
+    client: http.Client(),
+    civicInfoApiKey: dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '',
+  );
+  
+  final mockDataSource = MockRepresentativeDataSource();
+  
+  final representativesRemoteDataSource = HybridRepresentativesDataSource(
+    apiDataSource: apiDataSource, 
+    mockDataSource: mockDataSource,
+  );
+  */
 
   runApp(MyApp(
     sharedPreferences: sharedPreferences,

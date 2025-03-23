@@ -1,4 +1,5 @@
 // lib/features/representatives/data/repositories/representatives_repository_impl.dart
+import 'package:guvvy/features/representatives/data/datasources/mock_representative_datasource.dart';
 import 'package:guvvy/features/representatives/domain/repositories/representatives_repository.dart';
 import 'package:guvvy/features/representatives/domain/entities/representative.dart';
 import '../datasources/representatives_remote_datasource.dart';
@@ -17,50 +18,38 @@ class RepresentativesRepositoryImpl implements RepresentativesRepository {
   });
 
   @override
-  Future<List<Representative>> getRepresentativesByLocation(double latitude, double longitude) async {
+@override
+Future<List<Representative>> getRepresentativesByLocation(double latitude, double longitude) async {
+  try {
+    // Try to get data from real API
+    final representatives = await remoteDataSource.getRepresentativesByLocation(
+      latitude, 
+      longitude,
+    );
+    
+    // Cache results locally
+    await localDataSource.cacheRepresentatives(representatives);
+    
+    return representatives;
+  } catch (e) {
+    print('Error fetching representatives: $e');
+    
+    // Try to get data from cache first
     try {
-      // Check for internet connectivity
-      final isConnected = await ConnectivityService.hasInternetConnection();
-      
-      if (isConnected || !AppConfig.enableOfflineMode) {
-        // First, get the address string from the coordinates
-        final address = await GeocodingService.getAddressForCoordinates(latitude, longitude);
-        
-        // Then fetch representatives using the coordinates
-        final representatives = await remoteDataSource.getRepresentativesByLocation(
-          latitude, 
-          longitude,
-        );
-        
-        // Cache results locally for offline access
-        await localDataSource.cacheRepresentatives(representatives);
-        
-        return representatives;
-      } else {
-        // If offline mode is enabled and we're not connected, use cached data
-        final cachedRepresentatives = await localDataSource.getLastRepresentatives();
-        if (cachedRepresentatives.isNotEmpty) {
-          return cachedRepresentatives;
-        }
-        throw Exception('No internet connection and no cached data available');
+      final cachedReps = await localDataSource.getLastRepresentatives();
+      if (cachedReps.isNotEmpty) {
+        return cachedReps;
       }
-    } catch (e) {
-      // If remote fetch fails, try to get from local cache
-      if (AppConfig.enableOfflineMode) {
-        try {
-          final cachedRepresentatives = await localDataSource.getLastRepresentatives();
-          if (cachedRepresentatives.isNotEmpty) {
-            return cachedRepresentatives;
-          }
-        } catch (cacheError) {
-          // Ignore cache errors and throw the original error
-        }
-      }
-      
-      // If no cached data or offline mode is disabled, rethrow the error
-      rethrow;
+    } catch (cacheError) {
+      print('Cache error: $cacheError');
     }
+    
+    // If all else fails, use mock data as a fallback
+    print('Falling back to mock data');
+    final mockDataSource = MockRepresentativeDataSource();
+    return mockDataSource.getRepresentativesByLocation(latitude, longitude);
   }
+}
 
   @override
   Future<Representative> getRepresentativeById(String id) async {
