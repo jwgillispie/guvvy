@@ -75,16 +75,16 @@ class AuthError extends AuthState {
   List<Object?> get props => [message];
 }
 
-// Auth Bloc// Auth Bloc
+// Auth Bloc
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository _authRepository;
-  final UserRepository _userRepository; // Add this line
+  final UserRepository _userRepository;
 
   AuthBloc({
     required AuthRepository authRepository,
     required UserRepository userRepository,
   })  : _authRepository = authRepository,
-        _userRepository = userRepository, // Add this line
+        _userRepository = userRepository,
         super(AuthInitial()) {
     on<AuthSignUpRequested>(_onSignUpRequested);
     on<AuthLoginRequested>(_onLoginRequested);
@@ -97,26 +97,54 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     });
   }
 
-// In lib/features/auth/domain/bloc/auth_bloc.dart
   Future<void> _onSignUpRequested(
     AuthSignUpRequested event,
     Emitter<AuthState> emit,
   ) async {
     emit(AuthLoading());
+
     try {
-      // Create user in Firebase Auth
+      // Step 1: Create user in Firebase Auth
       final userCredential = await _authRepository.signUp(
         email: event.email,
         password: event.password,
       );
 
       if (userCredential.user != null) {
-        // Make sure this call works correctly
-        await _userRepository.createUserFromFirebaseUser(userCredential.user!);
-        print("User created in database: ${userCredential.user!.uid}");
+        try {
+          // Step 2: Create user in database
+          await _userRepository
+              .createUserFromFirebaseUser(userCredential.user!);
+          print(
+              "User created successfully in database: ${userCredential.user!.uid}");
+
+          // Step 3: Verify the user was created properly in the database
+          final userDoc =
+              await _userRepository.getUserById(userCredential.user!.uid);
+          if (userDoc == null) {
+            throw Exception("User document not found after creation");
+          }
+
+          // No need to emit authenticated state here as the authStateChanges stream will trigger
+        } catch (dbError) {
+          // If database creation fails, delete the Firebase Auth user and throw
+          print("Database creation failed: $dbError");
+          try {
+            await userCredential.user?.delete();
+          } catch (deleteError) {
+            print(
+                "Failed to clean up auth user after database failure: $deleteError");
+          }
+
+          // Force sign out
+          await _authRepository.signOut();
+
+          throw Exception(
+              "Account created but profile setup failed. Please try again. Error: $dbError");
+        }
       }
     } catch (e) {
-      print("Error signing up: $e");
+      print("Error in signup process: $e");
       emit(AuthError(message: e.toString()));
     }
   }
@@ -125,13 +153,37 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthLoginRequested event,
     Emitter<AuthState> emit,
   ) async {
+    print("Login requested for: ${event.email}");
     emit(AuthLoading());
     try {
-      await _authRepository.signIn(
-        email: event.email,
-        password: event.password,
-      );
-      // No need to emit authenticated state here as the authStateChanges stream will trigger
+      final userCredential = await _authRepository
+          .signIn(
+            email: event.email,
+            password: event.password,
+          )
+          .timeout(
+            const Duration(seconds: 10),
+            onTimeout: () =>
+                throw Exception("Login timed out. Please try again."),
+          );
+      print("Firebase login successful, user: ${userCredential.user?.uid}");
+
+      // Explicitly emit authenticated state
+      if (userCredential.user != null) {
+        emit(AuthAuthenticated(user: userCredential.user!));
+      } else {
+        emit(AuthError(message: "Login successful but no user returned"));
+      }
+
+      // Update last login timestamp if needed
+      try {
+        if (userCredential.user != null) {
+          await _userRepository.getUserById(userCredential.user!.uid);
+        }
+      } catch (e) {
+        print("Warning: Failed to update login timestamp: $e");
+        // Don't fail the login just because of this
+      }
     } catch (e) {
       emit(AuthError(message: e.toString()));
     }

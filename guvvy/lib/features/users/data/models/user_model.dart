@@ -14,17 +14,17 @@ class UserModel extends User {
     required DateTime updatedAt,
     required DateTime lastLoginAt,
   }) : super(
-    id: id,
-    email: email,
-    firstName: firstName,
-    lastName: lastName,
-    address: address,
-    districtIds: districtIds,
-    createdAt: createdAt,
-    updatedAt: updatedAt,
-    lastLoginAt: lastLoginAt,
-  );
-  
+          id: id,
+          email: email,
+          firstName: firstName,
+          lastName: lastName,
+          address: address,
+          districtIds: districtIds,
+          createdAt: createdAt,
+          updatedAt: updatedAt,
+          lastLoginAt: lastLoginAt,
+        );
+
   // CopyWith method to create a new instance with updated fields
   UserModel copyWith({
     String? id,
@@ -50,22 +50,44 @@ class UserModel extends User {
     );
   }
 
-  // Create a UserModel from a JSON map
-  factory UserModel.fromJson(Map<String, dynamic> json) {
-    return UserModel(
-      id: json['id'] as String,
-      email: json['email'] as String,
-      firstName: json['firstName'] as String?,
-      lastName: json['lastName'] as String?,
-      address: json['address'] != null 
-          ? AddressModel.fromJson(json['address']) 
-          : null,
-      districtIds: List<String>.from(json['districtIds'] ?? []),
-      createdAt: (json['createdAt'] as Timestamp).toDate(),
-      updatedAt: (json['updatedAt'] as Timestamp).toDate(),
-      lastLoginAt: (json['lastLoginAt'] as Timestamp).toDate(),
-    );
+factory UserModel.fromJson(Map<String, dynamic> json) {
+  // Handle the ID field, which could be either 'id' or '_id' from MongoDB
+  final id = json['id'] ?? json['_id'] ?? json['firebase_uid'];
+  
+  if (id == null) {
+    throw Exception('User document is missing ID field');
   }
+
+  // Handle different timestamp formats
+  DateTime parseTimestamp(dynamic timestamp) {
+    if (timestamp is Timestamp) {
+      return timestamp.toDate();
+    } else if (timestamp is String) {
+      return DateTime.parse(timestamp);
+    } else if (timestamp is int) {
+      return DateTime.fromMillisecondsSinceEpoch(timestamp);
+    } else if (timestamp is Map && timestamp.containsKey('_seconds')) {
+      return DateTime.fromMillisecondsSinceEpoch(
+          (timestamp['_seconds'] * 1000 + 
+          (timestamp['_nanoseconds'] ?? 0) / 1000000).round());
+    }
+    return DateTime.now(); // Fallback value if parsing fails
+  }
+
+  return UserModel(
+    id: id.toString(), // Convert to string in case it's an ObjectId
+    email: json['email'] as String,
+    firstName: json['firstName'] ?? json['first_name'],
+    lastName: json['lastName'] ?? json['last_name'],
+    address: json['address'] != null 
+        ? AddressModel.fromJson(json['address']) 
+        : null,
+    districtIds: List<String>.from(json['districtIds'] ?? json['district_ids'] ?? []),
+    createdAt: parseTimestamp(json['createdAt'] ?? json['created_at']),
+    updatedAt: parseTimestamp(json['updatedAt'] ?? json['updated_at']),
+    lastLoginAt: parseTimestamp(json['lastLoginAt'] ?? json['last_login_at']),
+  );
+}
 
   // Convert a UserModel to a JSON map
   Map<String, dynamic> toJson() {
@@ -73,9 +95,7 @@ class UserModel extends User {
       'email': email,
       'firstName': firstName,
       'lastName': lastName,
-      'address': address != null 
-          ? (address as AddressModel).toJson() 
-          : null,
+      'address': address != null ? (address as AddressModel).toJson() : null,
       'districtIds': districtIds,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
@@ -92,12 +112,12 @@ class AddressModel extends Address {
     required String zipCode,
     CoordinatesModel? coordinates,
   }) : super(
-    street: street,
-    city: city,
-    state: state,
-    zipCode: zipCode,
-    coordinates: coordinates,
-  );
+          street: street,
+          city: city,
+          state: state,
+          zipCode: zipCode,
+          coordinates: coordinates,
+        );
 
   factory AddressModel.fromJson(Map<String, dynamic> json) {
     return AddressModel(
@@ -105,8 +125,8 @@ class AddressModel extends Address {
       city: json['city'] as String,
       state: json['state'] as String,
       zipCode: json['zipCode'] as String,
-      coordinates: json['coordinates'] != null 
-          ? CoordinatesModel.fromJson(json['coordinates']) 
+      coordinates: json['coordinates'] != null
+          ? CoordinatesModel.fromJson(json['coordinates'])
           : null,
     );
   }
@@ -117,8 +137,8 @@ class AddressModel extends Address {
       'city': city,
       'state': state,
       'zipCode': zipCode,
-      'coordinates': coordinates != null 
-          ? (coordinates as CoordinatesModel).toJson() 
+      'coordinates': coordinates != null
+          ? (coordinates as CoordinatesModel).toJson()
           : null,
     };
   }
@@ -129,9 +149,9 @@ class CoordinatesModel extends Coordinates {
     required double latitude,
     required double longitude,
   }) : super(
-    latitude: latitude,
-    longitude: longitude,
-  );
+          latitude: latitude,
+          longitude: longitude,
+        );
 
   factory CoordinatesModel.fromJson(Map<String, dynamic> json) {
     return CoordinatesModel(
@@ -147,4 +167,3 @@ class CoordinatesModel extends Coordinates {
     };
   }
 }
-

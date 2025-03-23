@@ -14,7 +14,7 @@ class Address(BaseModel):
     street: str
     city: str
     state: str
-    zip_code: str
+    zipCode: str
     coordinates: Optional[Coordinates] = None
 
 
@@ -57,5 +57,5 @@ class AddressUpdate(BaseModel):
     street: str
     city: str
     state: str
-    zip_code: str
+    zipCode: str
     coordinates: Optional[Coordinates] = None

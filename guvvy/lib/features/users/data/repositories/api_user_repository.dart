@@ -133,7 +133,7 @@ class ApiUserRepository implements UserRepository {
           'street': address.street,
           'city': address.city,
           'state': address.state,
-          'zip_code': address.zipCode, // Note the difference in field name
+          'zipCode': address.zipCode, // Note the difference in field name
           'coordinates': address.coordinates != null
               ? {
                   'latitude': address.coordinates!.latitude,

@@ -66,7 +66,7 @@ async def update_user_address(firebase_uid: str, address_data: AddressUpdate) ->
         street=address_data.street,
         city=address_data.city,
         state=address_data.state,
-        zip_code=address_data.zip_code,
+        zipCode=address_data.zipCode,
         coordinates=address_data.coordinates,
     )
     
