@@ -130,18 +130,7 @@ void main() async {
     sharedPreferences: sharedPreferences,
   );
   
-  // Use the mock data source for now
-  final representativesRemoteDataSource = MockRepresentativeDataSource();
-  
-  /* 
-  // TODO: Use this code when you're ready to switch to real API data
-  // First, make sure the RepresentativesApiDataSource class is properly defined and imported
-  final representativesRemoteDataSource = RepresentativesApiDataSource(
-    client: http.Client(),
-    civicInfoApiKey: dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '',
-  );
-  
-  // Alternatively, use the hybrid approach to gracefully fall back to mock data
+  // Use the real API data source with fallback to mock data
   final apiDataSource = RepresentativesApiDataSource(
     client: http.Client(),
     civicInfoApiKey: dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '',
@@ -153,7 +142,6 @@ void main() async {
     apiDataSource: apiDataSource, 
     mockDataSource: mockDataSource,
   );
-  */
 
   runApp(MyApp(
     sharedPreferences: sharedPreferences,
