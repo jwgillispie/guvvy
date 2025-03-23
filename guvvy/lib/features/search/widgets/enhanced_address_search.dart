@@ -1,197 +1,257 @@
-// lib/features/search/widgets/enhanced_address_search.dart
+// lib/features/search/widgets/enhanced_address_search_field.dart
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:guvvy/config/theme.dart';
-import 'package:guvvy/features/search/domain/bloc/search_bloc.dart';
-import 'package:guvvy/features/search/domain/bloc/search_event.dart';
-import 'package:guvvy/features/search/domain/bloc/search_state.dart';
+import 'package:guvvy/core/services/geocoding_service.dart';
+import 'package:guvvy/features/search/domain/entities/location.dart';
 
-class EnhancedAddressSearch extends StatefulWidget {
-  final Function(double, double) onAddressSelected;
+class EnhancedAddressSearchField extends StatefulWidget {
+  final Function(Location) onAddressSelected;
+  final String? initialAddress;
+  final String hintText;
+  final bool autofocus;
 
-  const EnhancedAddressSearch({
+  const EnhancedAddressSearchField({
     Key? key,
     required this.onAddressSelected,
+    this.initialAddress,
+    this.hintText = 'Enter your address...',
+    this.autofocus = false,
   }) : super(key: key);
 
   @override
-  State<EnhancedAddressSearch> createState() => _EnhancedAddressSearchState();
+  State<EnhancedAddressSearchField> createState() =>
+      _EnhancedAddressSearchFieldState();
 }
 
-class _EnhancedAddressSearchState extends State<EnhancedAddressSearch> with SingleTickerProviderStateMixin {
-  late TextEditingController _searchController;
-  late FocusNode _searchFocus;
-  late AnimationController _animationController;
-  late Animation<double> _elevationAnimation;
+class _EnhancedAddressSearchFieldState extends State<EnhancedAddressSearchField> {
+  final TextEditingController _controller = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
   
-  bool _isFocused = false;
-
+  bool _showResults = false;
+  bool _isLoading = false;
+  List<GeocodingResult> _suggestions = [];
+  
   @override
   void initState() {
     super.initState();
-    _searchController = TextEditingController();
-    _searchFocus = FocusNode();
-    _searchFocus.addListener(_onFocusChange);
+    if (widget.initialAddress != null) {
+      _controller.text = widget.initialAddress!;
+    }
     
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 200),
-    );
-    
-    _elevationAnimation = Tween<double>(begin: 2, end: 10).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: Curves.easeOut,
-      ),
-    );
+    _focusNode.addListener(() {
+      if (_focusNode.hasFocus) {
+        setState(() {
+          _showResults = true;
+        });
+      }
+    });
   }
   
-  void _onFocusChange() {
-    setState(() {
-      _isFocused = _searchFocus.hasFocus;
-    });
-    
-    if (_searchFocus.hasFocus) {
-      _animationController.forward();
-    } else {
-      _animationController.reverse();
-    }
-  }
-
   @override
   void dispose() {
-    _searchController.dispose();
-    _searchFocus.removeListener(_onFocusChange);
-    _searchFocus.dispose();
-    _animationController.dispose();
+    _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
-
+  
+  Future<void> _getSuggestions(String query) async {
+    if (query.isEmpty) {
+      setState(() {
+        _suggestions = [];
+        _isLoading = false;
+      });
+      return;
+    }
+    
+    setState(() {
+      _isLoading = true;
+    });
+    
+    try {
+      final suggestions = await GeocodingService.searchAddressSuggestions(query);
+      
+      if (mounted) {
+        setState(() {
+          _suggestions = suggestions;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error fetching suggestions: $e')),
+        );
+      }
+    }
+  }
+  
+  Future<void> _selectAddress(GeocodingResult suggestion) async {
+    setState(() {
+      _isLoading = true;
+      _showResults = false;
+      _controller.text = suggestion.description;
+    });
+    
+    try {
+      final location = await GeocodingService.getCoordinatesForAddress(
+        suggestion.description,
+      );
+      
+      if (mounted) {
+        widget.onAddressSelected(location);
+        FocusScope.of(context).unfocus();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error getting coordinates: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+  
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    
-    return BlocListener<SearchBloc, SearchState>(
-      listener: (context, state) {
-        if (state is SearchResultsFound) {
-          // Notify parent widget
-          widget.onAddressSelected(
-            state.location.latitude,
-            state.location.longitude,
-          );
-        } else if (state is SearchError) {
-          // Show error message
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(state.message),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      },
-      child: AnimatedBuilder(
-        animation: _elevationAnimation,
-        builder: (context, child) {
-          return Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: _elevationAnimation.value,
-                  spreadRadius: _elevationAnimation.value / 5,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: child,
-          );
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Find Your Representatives',
-                style: theme.textTheme.titleLarge,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Search field
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
               ),
-              const SizedBox(height: 4),
-              Text(
-                'Enter your address to discover who represents you',
-                style: theme.textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 16),
-              Container(
-                decoration: BoxDecoration(
-                  color: GuvvyTheme.background,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: _isFocused ? GuvvyTheme.primaryLight : Colors.grey.shade200,
-                    width: _isFocused ? 2 : 1,
-                  ),
-                ),
-                child: TextField(
-                  controller: _searchController,
-                  focusNode: _searchFocus,
-                  decoration: InputDecoration(
-                    hintText: 'Street address, city, state...',
-                    hintStyle: TextStyle(
-                      color: Colors.grey.shade500,
-                    ),
-                    prefixIcon: Icon(
-                      Icons.place_outlined,
-                      color: _isFocused ? GuvvyTheme.primary : Colors.grey.shade500,
-                    ),
-                    suffixIcon: IconButton(
+            ],
+          ),
+          child: TextField(
+            controller: _controller,
+            focusNode: _focusNode,
+            decoration: InputDecoration(
+              hintText: widget.hintText,
+              prefixIcon: const Icon(Icons.location_on_outlined),
+              suffixIcon: _isLoading
+                  ? const Padding(
+                      padding: EdgeInsets.all(12.0),
+                      child: SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
+                      ),
+                    )
+                  : IconButton(
                       icon: const Icon(Icons.search),
-                      color: GuvvyTheme.primary,
                       onPressed: () {
-                        // Submit search and trigger geocoding
-                        final address = _searchController.text;
-                        if (address.isNotEmpty) {
-                          context.read<SearchBloc>().add(
-                            SearchAddressSubmitted(address),
+                        if (_controller.text.isNotEmpty) {
+                          _selectAddress(
+                            GeocodingResult(
+                              placeId: 'manual',
+                              description: _controller.text,
+                              primaryText: _controller.text,
+                              secondaryText: '',
+                            ),
                           );
                         }
                       },
                     ),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 16,
-                    ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 16,
+              ),
+            ),
+            autofocus: widget.autofocus,
+            onChanged: (value) {
+              // Only start searching after 2 characters
+              if (value.length >= 2) {
+                _getSuggestions(value);
+              } else {
+                setState(() {
+                  _suggestions = [];
+                });
+              }
+            },
+            onSubmitted: (value) {
+              if (value.isNotEmpty) {
+                _selectAddress(
+                  GeocodingResult(
+                    placeId: 'manual',
+                    description: value,
+                    primaryText: value,
+                    secondaryText: '',
                   ),
-                  textInputAction: TextInputAction.search,
-                  style: theme.textTheme.bodyLarge,
-                  onSubmitted: (address) {
-                    if (address.isNotEmpty) {
-                      context.read<SearchBloc>().add(
-                        SearchAddressSubmitted(address),
-                      );
-                    }
-                  },
-                ),
-              ),
-              BlocBuilder<SearchBloc, SearchState>(
-                builder: (context, state) {
-                  if (state is SearchLoading) {
-                    return const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 16.0),
-                      child: Center(
-                        child: CircularProgressIndicator(),
-                      ),
-                    );
-                  }
-                  return const SizedBox.shrink();
-                },
-              ),
-            ],
+                );
+              }
+            },
           ),
         ),
-      ),
+        
+        // Suggestions list
+        if (_showResults && _suggestions.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(top: 4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
+              itemCount: _suggestions.length,
+              separatorBuilder: (context, index) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final suggestion = _suggestions[index];
+                return ListTile(
+                  leading: const Icon(Icons.location_on_outlined),
+                  title: Text(
+                    suggestion.primaryText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    suggestion.secondaryText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  onTap: () {
+                    _selectAddress(suggestion);
+                  },
+                );
+              },
+            ),
+          ),
+      ],
     );
   }
 }

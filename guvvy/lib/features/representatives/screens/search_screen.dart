@@ -1,4 +1,4 @@
-// lib/features/search/presentation/screens/search_screen.dart
+// lib/features/search/screens/search_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:guvvy/config/theme.dart';
@@ -8,7 +8,6 @@ import 'package:guvvy/features/search/domain/bloc/search_bloc.dart';
 import 'package:guvvy/features/search/domain/bloc/search_event.dart';
 import 'package:guvvy/features/search/domain/bloc/search_state.dart';
 import 'package:guvvy/features/search/widgets/enhanced_address_search.dart';
-
 class SearchScreen extends StatefulWidget {
   const SearchScreen({Key? key}) : super(key: key);
 
@@ -16,41 +15,19 @@ class SearchScreen extends StatefulWidget {
   State<SearchScreen> createState() => _SearchScreenState();
 }
 
-class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
-
+class _SearchScreenState extends State<SearchScreen> {
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-    
-    _fadeAnimation = CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOut,
-    );
-    
-    _animationController.forward();
-    
-    // Load search history when screen is mounted
+    // Load search history when screen mounts
     context.read<SearchBloc>().add(SearchHistoryRequested());
-  }
-  
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Find Your Representatives'),
-        elevation: 0,
+        title: const Text('Find Representatives'),
         actions: [
           BlocBuilder<SearchBloc, SearchState>(
             builder: (context, state) {
@@ -68,167 +45,161 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
           ),
         ],
       ),
-      body: SafeArea(
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: Column(
-            children: [
-              const SizedBox(height: 8),
-              EnhancedAddressSearch(
-                onAddressSelected: (latitude, longitude) {
-                  // Load representatives with the coordinates
-                  context.read<RepresentativesBloc>().add(
-                    LoadRepresentatives(
-                      latitude: latitude,
-                      longitude: longitude,
-                    ),
-                  );
-                  
-                  // Navigate to representatives screen
-                  Navigator.pushNamed(context, '/representatives');
-                },
-              ),
-              
-              // Recent searches list
-              Expanded(
-                child: BlocBuilder<SearchBloc, SearchState>(
-                  builder: (context, state) {
-                    if (state is SearchHistoryLoaded && state.historyItems.isNotEmpty) {
-                      return Padding(
-                        padding: const EdgeInsets.all(16.0),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Enhanced address search
+            EnhancedAddressSearchField(
+              onAddressSelected: (location) {
+                // Save search to history
+                context.read<SearchBloc>().add(
+                  SearchAddressSubmitted(
+                    location.formattedAddress ?? 'Unknown Address',
+                  ),
+                );
+                
+                // Load representatives with the coordinates
+                context.read<RepresentativesBloc>().add(
+                  LoadRepresentatives(
+                    latitude: location.latitude,
+                    longitude: location.longitude,
+                  ),
+                );
+                
+                // Navigate to representatives screen
+                Navigator.pushNamed(context, '/representatives');
+              },
+              hintText: 'Enter an address to find representatives',
+            ),
+            
+            const SizedBox(height: 24),
+            
+            // Recent searches
+            BlocBuilder<SearchBloc, SearchState>(
+              builder: (context, state) {
+                if (state is SearchHistoryLoaded) {
+                  if (state.historyItems.isEmpty) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 100.0),
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 8.0),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.history,
-                                    size: 16, 
-                                    color: GuvvyTheme.textSecondary
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Recent Searches',
-                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                            Icon(
+                              Icons.search,
+                              size: 80,
+                              color: Colors.grey.shade300,
                             ),
-                            Expanded(
-                              child: ListView.separated(
-                                itemCount: state.historyItems.length,
-                                separatorBuilder: (context, index) => const Divider(height: 1),
-                                itemBuilder: (context, index) {
-                                  final item = state.historyItems[index];
-                                  return Dismissible(
-                                    key: Key(item.id),
-                                    background: Container(
-                                      color: Colors.red.shade700,
-                                      alignment: Alignment.centerRight,
-                                      padding: const EdgeInsets.only(right: 20.0),
-                                      child: const Icon(
-                                        Icons.delete,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    direction: DismissDirection.endToStart,
-                                    onDismissed: (direction) {
-                                      context.read<SearchBloc>().add(
-                                        SearchHistoryItemDeleted(item.id),
-                                      );
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: const Text('Search removed'),
-                                          action: SnackBarAction(
-                                            label: 'UNDO',
-                                            onPressed: () {
-                                              // Load history again to restore the item
-                                              // (In a real app, you'd have a more elegant solution)
-                                              context.read<SearchBloc>().add(
-                                                SearchHistoryRequested(),
-                                              );
-                                            },
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                    child: ListTile(
-                                      contentPadding: const EdgeInsets.symmetric(
-                                        horizontal: 16.0,
-                                        vertical: 8.0,
-                                      ),
-                                      leading: CircleAvatar(
-                                        backgroundColor: GuvvyTheme.primary.withOpacity(0.1),
-                                        foregroundColor: GuvvyTheme.primary,
-                                        child: const Icon(Icons.place_outlined),
-                                      ),
-                                      title: Text(
-                                        item.address,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      subtitle: Text(
-                                        'Searched on ${_formatDate(item.timestamp)}',
-                                        style: Theme.of(context).textTheme.bodySmall,
-                                      ),
-                                      trailing: const Icon(Icons.chevron_right),
-                                      onTap: () {
-                                        // Load representatives with the saved coordinates
-                                        context.read<RepresentativesBloc>().add(
-                                          LoadRepresentatives(
-                                            latitude: item.location.latitude,
-                                            longitude: item.location.longitude,
-                                          ),
-                                        );
-                                        
-                                        // Navigate to representatives screen
-                                        Navigator.pushNamed(context, '/representatives');
-                                      },
-                                    ),
-                                  );
-                                },
+                            const SizedBox(height: 16),
+                            Text(
+                              'No recent searches',
+                              style: TextStyle(
+                                fontSize: 16, 
+                                color: Colors.grey.shade600,
                               ),
                             ),
                           ],
                         ),
-                      );
-                    } else if (state is SearchLoading) {
-                      return const Center(
-                        child: CircularProgressIndicator(),
-                      );
-                    }
-                    
-                    // Empty or initial state
-                    return Padding(
-                      padding: const EdgeInsets.all(32.0),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.search,
-                            size: 64,
-                            color: Colors.grey.shade400,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Enter an address to find your representatives',
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                        ],
                       ),
                     );
-                  },
-                ),
-              ),
-            ],
-          ),
+                  }
+                  
+                  return Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.history,
+                              size: 18,
+                              color: GuvvyTheme.textSecondary,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Recent Searches',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Expanded(
+                          child: ListView.separated(
+                            itemCount: state.historyItems.length,
+                            separatorBuilder: (context, index) => const Divider(height: 1),
+                            itemBuilder: (context, index) {
+                              final item = state.historyItems[index];
+                              return Dismissible(
+                                key: Key(item.id),
+                                direction: DismissDirection.endToStart,
+                                background: Container(
+                                  color: Colors.red,
+                                  alignment: Alignment.centerRight,
+                                  padding: const EdgeInsets.only(right: 16.0),
+                                  child: const Icon(
+                                    Icons.delete,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                onDismissed: (direction) {
+                                  context.read<SearchBloc>().add(
+                                    SearchHistoryItemDeleted(item.id),
+                                  );
+                                },
+                                child: ListTile(
+                                  leading: Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: GuvvyTheme.primary.withOpacity(0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.location_on_outlined,
+                                      color: GuvvyTheme.primary,
+                                      size: 20,
+                                    ),
+                                  ),
+                                  title: Text(
+                                    item.address,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  subtitle: Text(
+                                    'Searched on ${_formatDate(item.timestamp)}',
+                                    style: Theme.of(context).textTheme.bodySmall,
+                                  ),
+                                  trailing: const Icon(Icons.chevron_right),
+                                  onTap: () {
+                                    // Load representatives with saved coordinates
+                                    context.read<RepresentativesBloc>().add(
+                                      LoadRepresentatives(
+                                        latitude: item.location.latitude,
+                                        longitude: item.location.longitude,
+                                      ),
+                                    );
+                                    
+                                    // Navigate to representatives screen
+                                    Navigator.pushNamed(context, '/representatives');
+                                  },
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                } else if (state is SearchLoading) {
+                  return const Center(
+                    child: CircularProgressIndicator(),
+                  );
+                }
+                
+                return const SizedBox.shrink();
+              },
+            ),
+          ],
         ),
       ),
     );

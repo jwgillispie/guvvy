@@ -2,13 +2,16 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:guvvy/features/onboarding/screens/address_input_screen.dart';
+import 'package:guvvy/features/search/screens/address_search_test_screen.dart';
+import 'package:http/http.dart' as http;
 import 'package:guvvy/features/auth/data/repositories/auth_repository.dart';
 import 'package:guvvy/features/auth/domain/bloc/auth_bloc.dart';
 import 'package:guvvy/features/auth/presentation/screens/login_screen.dart';
 import 'package:guvvy/features/auth/presentation/screens/password_reset_screen.dart';
 import 'package:guvvy/features/auth/presentation/screens/signup_screen.dart';
 import 'package:guvvy/features/representatives/screens/onboarding_screen.dart';
-import 'package:guvvy/features/users/data/repositories/firebase_user_repository.dart';
 import 'package:guvvy/features/users/data/repositories/user_repository_factory.dart';
 import 'package:guvvy/features/users/domain/bloc/user_bloc.dart';
 import 'package:guvvy/features/users/domain/repositories/user_repository.dart';
@@ -17,7 +20,7 @@ import 'package:guvvy/config/custom_page_routes.dart';
 import 'package:guvvy/config/theme.dart';
 import 'package:guvvy/features/onboarding/data/services/onboarding_manager.dart';
 import 'package:guvvy/firebase_options.dart';
-import 'package:guvvy/features/representatives/data/datasources/mock_representative_datasource.dart';
+import 'package:guvvy/features/representatives/data/datasources/representatives_api_datasource.dart';
 import 'package:guvvy/features/representatives/data/datasources/representatives_local_datasource.dart';
 import 'package:guvvy/features/representatives/data/repositories/representatives_repository_impl.dart';
 import 'package:guvvy/features/representatives/domain/bloc/representatives_bloc.dart';
@@ -76,6 +79,10 @@ class AppRouter {
             representativeId: representativeId,
           ),
         );
+      case '/test-address-search':
+        return MaterialPageRoute(
+          builder: (_) => const AddressSearchTestScreen(),
+        );
       default:
         return MaterialPageRoute(
           builder: (_) => Scaffold(
@@ -91,6 +98,9 @@ class AppRouter {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Load environment variables
+  await dotenv.load(fileName: ".env");
+
   // Initialize Firebase before any other services
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
@@ -102,24 +112,32 @@ void main() async {
   // Create Auth Repository
   final authRepository = AuthRepository();
 
+  // Create API data sources
+  final representativesApiDataSource = RepresentativesApiDataSource();
+  final representativesLocalDataSource = RepresentativesLocalDataSourceImpl(
+    sharedPreferences: sharedPreferences,
+  );
+
   runApp(MyApp(
     sharedPreferences: sharedPreferences,
     authRepository: authRepository,
+    representativesApiDataSource: representativesApiDataSource,
+    representativesLocalDataSource: representativesLocalDataSource,
   ));
 }
-// Modifications to lib/main.dart
 
-// Add these imports
-
-// Then, modify the MyApp class to use UserRepository factory
 class MyApp extends StatelessWidget {
   final SharedPreferences sharedPreferences;
   final AuthRepository authRepository;
+  final RepresentativesApiDataSource representativesApiDataSource;
+  final RepresentativesLocalDataSource representativesLocalDataSource;
 
   const MyApp({
     Key? key,
     required this.sharedPreferences,
     required this.authRepository,
+    required this.representativesApiDataSource,
+    required this.representativesLocalDataSource,
   }) : super(key: key);
 
   @override
@@ -139,10 +157,8 @@ class MyApp extends StatelessWidget {
         // Representatives Repository
         RepositoryProvider<RepresentativesRepository>(
           create: (context) => RepresentativesRepositoryImpl(
-            remoteDataSource: MockRepresentativeDataSource(),
-            localDataSource: RepresentativesLocalDataSourceImpl(
-              sharedPreferences: sharedPreferences,
-            ),
+            remoteDataSource: representativesApiDataSource,
+            localDataSource: representativesLocalDataSource,
           ),
         ),
 
@@ -170,7 +186,7 @@ class MyApp extends StatelessWidget {
             ),
           ),
 
-          // Other BLoC providers remain the same
+          // Representatives BLoC
           BlocProvider<RepresentativesBloc>(
             create: (context) => RepresentativesBloc(
               getRepresentativesByLocation: GetRepresentativesByLocation(
@@ -191,6 +207,7 @@ class MyApp extends StatelessWidget {
             ),
           ),
 
+          // Search BLoC
           BlocProvider<SearchBloc>(
             create: (context) => SearchBloc(
               searchRepository: context.read<SearchRepository>(),
@@ -263,7 +280,6 @@ class _SplashScreenState extends State<SplashScreen> {
         break;
     }
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -311,6 +327,28 @@ class _SplashScreenState extends State<SplashScreen> {
             const SizedBox(height: 48),
             const CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+
+            // Add test buttons
+            const SizedBox(height: 48),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pushNamed('/test-address-search');
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: GuvvyTheme.primary,
+              ),
+              child: const Text('Test Address Search'),
+            ),
+
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: _navigateToLogin,
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Continue to Login'),
             ),
           ],
         ),
