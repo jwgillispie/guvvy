@@ -1,6 +1,6 @@
 import UIKit
 import Flutter
-import GoogleMaps  // Make sure this import is present
+import GoogleMaps
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
@@ -8,8 +8,14 @@ import GoogleMaps  // Make sure this import is present
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    // Add this line before GeneratedPluginRegistrant
-    GMSServices.provideAPIKey("AIzaSyDXv8eUg-n_NNUit9u6Fl0v5p11VNfhzuY")
+    // Load API key from Keys.plist
+    if let path = Bundle.main.path(forResource: "Keys", ofType: "plist"),
+       let keys = NSDictionary(contentsOfFile: path),
+       let apiKey = keys["GoogleMapsAPIKey"] as? String {
+      GMSServices.provideAPIKey(apiKey)
+    } else {
+      fatalError("Google Maps API key not found in Keys.plist")
+    }
     
     GeneratedPluginRegistrant.register(with: self)
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
