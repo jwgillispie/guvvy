@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:guvvy/config/theme.dart';
+import 'package:guvvy/core/config/app_config.dart';
 import 'package:guvvy/core/services/geocoding_service.dart';
 import 'package:guvvy/core/services/location_service.dart';
 import 'package:guvvy/core/services/permissions_service.dart';
+import 'package:guvvy/core/widgets/rep_search_diagnostics.dart';
 import 'package:guvvy/features/representatives/domain/bloc/representatives_bloc.dart';
 import 'package:guvvy/features/representatives/domain/bloc/representatives_event.dart';
 import 'package:guvvy/features/search/domain/bloc/search_bloc.dart';
@@ -179,35 +181,53 @@ class _MapSearchScreenState extends State<MapSearchScreen> {
     }
   }
   
-  // Find representatives with the selected location
-  void _findRepresentatives() {
-    if (_selectedLocation == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a location first')),
-      );
-      return;
-    }
-    
-    // Save search to history
-    if (_selectedLocation!.formattedAddress != null) {
-      context.read<SearchBloc>().add(
-        SearchAddressSubmitted(
-          _selectedLocation!.formattedAddress!,
-        ),
-      );
-    }
-    
-    // Load representatives with the coordinates
-    context.read<RepresentativesBloc>().add(
-      LoadRepresentatives(
-        latitude: _selectedLocation!.latitude,
-        longitude: _selectedLocation!.longitude,
+// Add this to lib/features/search/screens/map_search_screen.dart
+// Inside the _findRepresentatives() method
+
+void _findRepresentatives() {
+  if (_selectedLocation == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Please select a location first')),
+    );
+    return;
+  }
+  
+  // Add debug output to trace what's happening
+  print('Finding representatives for:');
+  print('Latitude: ${_selectedLocation!.latitude}');
+  print('Longitude: ${_selectedLocation!.longitude}');
+  print('Address: ${_selectedLocation!.formattedAddress}');
+  
+  // Show a diagnostic dialog for debugging in development
+  if (AppConfig.environment == 'development') {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        child: RepSearchDiagnostics(searchLocation: _selectedLocation!),
       ),
     );
-    
-    // Navigate to representatives screen
-    Navigator.pushNamed(context, '/representatives');
   }
+
+  // Save search to history
+  if (_selectedLocation!.formattedAddress != null) {
+    context.read<SearchBloc>().add(
+      SearchAddressSubmitted(
+        _selectedLocation!.formattedAddress!,
+      ),
+    );
+  }
+  
+  // Load representatives with the coordinates
+  context.read<RepresentativesBloc>().add(
+    LoadRepresentatives(
+      latitude: _selectedLocation!.latitude,
+      longitude: _selectedLocation!.longitude,
+    ),
+  );
+  
+  // Navigate to representatives screen
+  Navigator.pushNamed(context, '/representatives');
+}
   
   @override
   Widget build(BuildContext context) {

@@ -451,6 +451,8 @@ extension StringExtension on String {
   }
 }
 
+// Update this in lib/features/representatives/data/datasources/representatives_remote_datasource.dart
+
 // A hybrid implementation that falls back to mock data if API fails
 class HybridRepresentativesDataSource implements RepresentativesRemoteDataSource {
   final RepresentativesApiDataSource apiDataSource;
@@ -465,27 +467,95 @@ class HybridRepresentativesDataSource implements RepresentativesRemoteDataSource
   Future<List<RepresentativeModel>> getRepresentativesByLocation(double latitude, double longitude) async {
     try {
       // Try to get real data first
+      print('HybridSource: Attempting to fetch real data for coordinates: $latitude, $longitude');
       final results = await apiDataSource.getRepresentativesByLocation(latitude, longitude);
+      
       if (results.isNotEmpty) {
+        print('HybridSource: Found ${results.length} representatives from API');
         return results;
       }
       // If no results, fall back to mock data
-      print('No representatives found from API - Falling back to mock data');
-      return await mockDataSource.getRepresentativesByLocation(latitude, longitude);
+      print('HybridSource: No representatives found from API - Falling back to mock data');
+      final mockResults = await mockDataSource.getRepresentativesByLocation(latitude, longitude);
+      print('HybridSource: Found ${mockResults.length} mock representatives');
+      return mockResults;
     } catch (e) {
-      print('API error: $e - Falling back to mock data');
+      print('HybridSource: API error: $e - Falling back to mock data');
       // Fall back to mock data if API fails
-      return await mockDataSource.getRepresentativesByLocation(latitude, longitude);
+      final mockResults = await mockDataSource.getRepresentativesByLocation(latitude, longitude);
+      print('HybridSource: Using ${mockResults.length} mock representatives due to error');
+      
+      // Create new models with modified ids instead of trying to modify the existing ones
+      final labeledMockResults = mockResults.map((rep) {
+        return RepresentativeModel(
+          id: 'mock-${rep.id}',  // Prepend 'mock-' to the id
+          name: rep.name,
+          party: rep.party,
+          role: rep.role,
+          level: rep.level,
+          district: rep.district,
+          contact: rep.contact,
+          committees: rep.committees,
+        );
+      }).toList();
+      
+      return labeledMockResults;
     }
   }
   
   @override
   Future<RepresentativeModel> getRepresentativeById(String id) async {
     try {
+      // Check if this is a mock ID (created by our hybrid implementation)
+      if (id.startsWith('mock-')) {
+        final originalId = id.substring(5); // Remove 'mock-' prefix
+        print('HybridSource: Fetching mock representative with original ID: $originalId');
+        final mockRep = await mockDataSource.getRepresentativeById(originalId);
+        
+        // Create a new model with the mock- prefix preserved
+        return RepresentativeModel(
+          id: id, // Keep the mock-prefixed id
+          name: mockRep.name,
+          party: mockRep.party,
+          role: mockRep.role,
+          level: mockRep.level,
+          district: mockRep.district,
+          contact: mockRep.contact,
+          committees: mockRep.committees,
+        );
+      }
+      
+      // Try to get from real API first
+      print('HybridSource: Attempting to fetch representative with ID: $id from API');
       return await apiDataSource.getRepresentativeById(id);
     } catch (e) {
-      print('API error: $e - Falling back to mock data');
-      return await mockDataSource.getRepresentativeById(id);
+      print('HybridSource: API error when fetching representative by ID: $e - Falling back to mock data');
+      
+      // Get from mock source but preserve the ID format
+      try {
+        String lookupId = id;
+        if (id.startsWith('mock-')) {
+          lookupId = id.substring(5); // Remove 'mock-' prefix
+        }
+        
+        final mockRep = await mockDataSource.getRepresentativeById(lookupId);
+        
+        // Return with the original requested ID to maintain consistency
+        return RepresentativeModel(
+          id: id,
+          name: mockRep.name,
+          party: mockRep.party,
+          role: mockRep.role,
+          level: mockRep.level,
+          district: mockRep.district,
+          contact: mockRep.contact,
+          committees: mockRep.committees,
+        );
+      } catch (mockError) {
+        // If both real and mock fail, rethrow the original error
+        print('HybridSource: Mock data source also failed: $mockError');
+        throw Exception('Failed to get representative details: $e');
+      }
     }
   }
 }

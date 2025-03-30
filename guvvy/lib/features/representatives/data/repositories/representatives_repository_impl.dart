@@ -17,15 +17,22 @@ class RepresentativesRepositoryImpl implements RepresentativesRepository {
     required this.localDataSource,
   });
 
-  @override
+
 @override
 Future<List<Representative>> getRepresentativesByLocation(double latitude, double longitude) async {
   try {
+    print('Getting representatives for location: $latitude, $longitude');
+    
     // Try to get data from real API
     final representatives = await remoteDataSource.getRepresentativesByLocation(
       latitude, 
       longitude,
     );
+    
+    print('Found ${representatives.length} representatives');
+    // Log the levels for debugging
+    final levels = representatives.map((r) => r.level).toSet().toList();
+    print('Representative levels: $levels');
     
     // Cache results locally
     await localDataSource.cacheRepresentatives(representatives);
@@ -44,10 +51,16 @@ Future<List<Representative>> getRepresentativesByLocation(double latitude, doubl
       print('Cache error: $cacheError');
     }
     
-    // If all else fails, use mock data as a fallback
-    print('Falling back to mock data');
-    final mockDataSource = MockRepresentativeDataSource();
-    return mockDataSource.getRepresentativesByLocation(latitude, longitude);
+    // Instead of silently falling back to mock data, we should
+    // either return an empty list or rethrow the error
+    // This ensures the UI shows the error message instead of showing
+    // incorrect data
+    
+    // For now, let's return an empty list
+    return [];
+    
+    // Alternatively, we could rethrow the error:
+    // throw Exception('Failed to load representatives: $e');
   }
 }
 
