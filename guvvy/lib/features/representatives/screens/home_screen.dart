@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:guvvy/features/representatives/domain/bloc/representatives_bloc.dart';
 import 'package:guvvy/features/representatives/domain/bloc/representatives_event.dart';
 import 'package:guvvy/features/representatives/presentation/widgets/address_search_field.dart';
+import 'package:guvvy/features/representatives/presentation/widgets/filter_chips.dart';
 import 'package:guvvy/features/representatives/presentation/widgets/recent_searches.dart';
 
 class HomeScreen extends StatelessWidget {
