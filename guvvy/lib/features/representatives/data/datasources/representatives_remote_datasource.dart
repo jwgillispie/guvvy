@@ -24,24 +24,40 @@ class RepresentativesApiDataSource implements RepresentativesRemoteDataSource {
     double latitude,
     double longitude,
   ) async {
+    if (civicInfoApiKey.isEmpty) {
+      throw Exception('Google Civic Info API key is not configured');
+    }
+
+    print('API DataSource: Getting representatives for $latitude, $longitude using Google API key');
+    
     // Get address from coordinates for Google Civic Info API
     final address = await GeocodingService.getAddressForCoordinates(latitude, longitude);
+    print('API DataSource: Resolved address: $address');
+    
     final representatives = <RepresentativeModel>[];
     
     // Get federal and state representatives from Google Civic Info API
     try {
       await _fetchFromCivicInfoApi(address, representatives);
+      print('API DataSource: Retrieved ${representatives.length} representatives from Civic Info API');
     } catch (e) {
-      print('Error fetching from Civic Info API: $e');
+      print('API DataSource: Error fetching from Civic Info API: $e');
       // Continue to next API even if this one fails
     }
     
     // Get state representatives from Open States API
     try {
       await _fetchFromOpenStatesApi(latitude, longitude, representatives);
+      print('API DataSource: Retrieved a total of ${representatives.length} representatives after Open States API');
     } catch (e) {
-      print('Error fetching from Open States API: $e');
+      print('API DataSource: Error fetching from Open States API: $e');
       // Continue even if this API fails
+    }
+    
+    // If we have zero representatives, we should throw an exception
+    // This will trigger the fallback to mock data in the hybrid source
+    if (representatives.isEmpty) {
+      throw Exception('No representatives found for this location');
     }
     
     return representatives;
@@ -333,41 +349,73 @@ class RepresentativesApiDataSource implements RepresentativesRemoteDataSource {
   Future<RepresentativeModel> getRepresentativeById(String id) async {
     // If it's an Open States ID, use their API
     if (id.startsWith('openstate-')) {
-      final openStatesId = id.substring(10); // Remove 'openstate-' prefix
-      
-      final response = await client.get(
-        Uri.parse('https://v3.openstates.org/people/$openStatesId'),
-        headers: {
-          'X-API-Key': ApiKeys.openStatesKey,
-        },
-      );
-      
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        
-        if (data.containsKey('result')) {
-          final person = data['result'];
-          
-          return RepresentativeModel(
-            id: id,
-            name: person['name'] ?? '',
-            party: person['party'] ?? 'Unknown',
-            role: person['current_role']?['title'] ?? 'State Legislator',
-            level: 'state',
-            district: person['current_role']?['district'] ?? '',
-            contact: ContactModel(
-              office: _extractOfficeAddress(person) ?? '',
-              phone: _extractContactInfo(person, 'voice') ?? '',
-              email: _extractContactInfo(person, 'email'),
-              website: person['openstates_url'] ?? '',
-              socialMedia: const SocialMediaModel(),
-            ),
-            committees: _extractCommittees(person),
-          );
+      try {
+        // Extract the actual Open States ID - handle various formats
+        String openStatesId;
+        if (id.startsWith('openstate-ocd-person/')) {
+          // Full Open States ID format
+          openStatesId = id.substring('openstate-'.length);
+        } else {
+          // Simple prefix format
+          openStatesId = id.substring(10);
         }
+        
+        // Debug logging
+        print('Fetching Open States representative with ID: $openStatesId');
+        print('Using API key: ${ApiKeys.openStatesKey.isNotEmpty ? 'Found (masked)' : 'MISSING'}');
+        
+        // Make API request
+        final response = await client.get(
+          Uri.parse('https://v3.openstates.org/people/$openStatesId'),
+          headers: {
+            'X-API-Key': ApiKeys.openStatesKey,
+          },
+        );
+        
+        // Debug logging for response
+        print('Open States API Response status: ${response.statusCode}');
+        if (response.statusCode != 200) {
+          print('Open States API Error: ${response.body}');
+        }
+        
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          
+          if (data.containsKey('result')) {
+            final person = data['result'];
+            
+            return RepresentativeModel(
+              id: id,
+              name: person['name'] ?? 'Unknown Name',
+              party: person['party'] ?? 'Unknown',
+              role: person['current_role']?['title'] ?? 'State Legislator',
+              level: 'state',
+              district: person['current_role']?['district'] ?? '',
+              contact: ContactModel(
+                office: _extractOfficeAddress(person) ?? '',
+                phone: _extractContactInfo(person, 'voice') ?? '',
+                email: _extractContactInfo(person, 'email'),
+                website: person['openstates_url'] ?? '',
+                socialMedia: const SocialMediaModel(),
+              ),
+              committees: _extractCommittees(person),
+            );
+          } else {
+            print('Open States API returned unexpected format - missing "result" field');
+            throw Exception('Invalid response format from Open States API');
+          }
+        } else if (response.statusCode == 401 || response.statusCode == 403) {
+          throw Exception('Open States API authentication failed - check your API key');
+        } else if (response.statusCode == 404) {
+          throw Exception('Representative not found in Open States API');
+        } else {
+          throw Exception('Failed to load from Open States API: HTTP ${response.statusCode}');
+        }
+      } catch (e) {
+        // More detailed error
+        print('Error fetching from Open States API: $e');
+        throw Exception('Failed to load representative details from Open States API: $e');
       }
-      
-      throw Exception('Failed to load representative details from Open States API');
     }
     
     // For federal/local representatives, we need a different approach
@@ -451,8 +499,6 @@ extension StringExtension on String {
   }
 }
 
-// Update this in lib/features/representatives/data/datasources/representatives_remote_datasource.dart
-
 // A hybrid implementation that falls back to mock data if API fails
 class HybridRepresentativesDataSource implements RepresentativesRemoteDataSource {
   final RepresentativesApiDataSource apiDataSource;
@@ -474,19 +520,14 @@ class HybridRepresentativesDataSource implements RepresentativesRemoteDataSource
         print('HybridSource: Found ${results.length} representatives from API');
         return results;
       }
+      
       // If no results, fall back to mock data
       print('HybridSource: No representatives found from API - Falling back to mock data');
       final mockResults = await mockDataSource.getRepresentativesByLocation(latitude, longitude);
       print('HybridSource: Found ${mockResults.length} mock representatives');
-      return mockResults;
-    } catch (e) {
-      print('HybridSource: API error: $e - Falling back to mock data');
-      // Fall back to mock data if API fails
-      final mockResults = await mockDataSource.getRepresentativesByLocation(latitude, longitude);
-      print('HybridSource: Using ${mockResults.length} mock representatives due to error');
       
-      // Create new models with modified ids instead of trying to modify the existing ones
-      final labeledMockResults = mockResults.map((rep) {
+      // Create new models with modified ids to identify them as mock data
+      return mockResults.map((rep) {
         return RepresentativeModel(
           id: 'mock-${rep.id}',  // Prepend 'mock-' to the id
           name: rep.name,
@@ -498,8 +539,26 @@ class HybridRepresentativesDataSource implements RepresentativesRemoteDataSource
           committees: rep.committees,
         );
       }).toList();
+    } catch (e) {
+      print('HybridSource: API error: $e - Falling back to mock data');
       
-      return labeledMockResults;
+      // Fall back to mock data if API fails
+      final mockResults = await mockDataSource.getRepresentativesByLocation(latitude, longitude);
+      print('HybridSource: Using ${mockResults.length} mock representatives due to error');
+      
+      // Create new models with modified ids
+      return mockResults.map((rep) {
+        return RepresentativeModel(
+          id: 'mock-${rep.id}',  // Prepend 'mock-' to the id
+          name: rep.name,
+          party: rep.party,
+          role: rep.role,
+          level: rep.level,
+          district: rep.district,
+          contact: rep.contact,
+          committees: rep.committees,
+        );
+      }).toList();
     }
   }
   
@@ -527,35 +586,125 @@ class HybridRepresentativesDataSource implements RepresentativesRemoteDataSource
       
       // Try to get from real API first
       print('HybridSource: Attempting to fetch representative with ID: $id from API');
-      return await apiDataSource.getRepresentativeById(id);
-    } catch (e) {
-      print('HybridSource: API error when fetching representative by ID: $e - Falling back to mock data');
-      
-      // Get from mock source but preserve the ID format
       try {
-        String lookupId = id;
-        if (id.startsWith('mock-')) {
-          lookupId = id.substring(5); // Remove 'mock-' prefix
+        return await apiDataSource.getRepresentativeById(id);
+      } catch (apiError) {
+        print('HybridSource: API error when fetching representative by ID: $apiError - Falling back to mock data');
+        
+        // Special handling for Open States IDs
+        if (id.startsWith('openstate-')) {
+          String displayName = "Unknown State Representative";
+          String district = "";
+          String state = "";
+          
+          // Try to extract state and district info from the ID
+          final idParts = id.split('/');
+          if (idParts.length > 1) {
+            final lastPart = idParts.last;
+            
+            // Look for state code (2 letters) in the ID
+            final stateMatch = RegExp(r'([a-z]{2})').firstMatch(lastPart);
+            if (stateMatch != null) {
+              state = stateMatch.group(1)?.toUpperCase() ?? "";
+            }
+            
+            // Look for district number
+            final districtMatch = RegExp(r'district:(\d+)').firstMatch(id);
+            if (districtMatch != null) {
+              district = districtMatch.group(1) ?? "";
+            }
+            
+            if (state.isNotEmpty) {
+              displayName = "State Rep. of $state";
+              if (district.isNotEmpty) {
+                displayName += " District $district";
+              }
+            }
+          }
+          
+          // Create a better fallback than just "Unknown"
+          return RepresentativeModel(
+            id: id,
+            name: displayName,
+            party: "Unknown",
+            role: "State Legislator",
+            level: "state",
+            district: district.isNotEmpty ? district : state,
+            contact: ContactModel(
+              office: state.isNotEmpty ? "State Capitol, $state" : "",
+              phone: "",
+              email: null,
+              website: "",
+              socialMedia: const SocialMediaModel(),
+            ),
+            committees: [],
+          );
         }
         
-        final mockRep = await mockDataSource.getRepresentativeById(lookupId);
-        
-        // Return with the original requested ID to maintain consistency
-        return RepresentativeModel(
-          id: id,
-          name: mockRep.name,
-          party: mockRep.party,
-          role: mockRep.role,
-          level: mockRep.level,
-          district: mockRep.district,
-          contact: mockRep.contact,
-          committees: mockRep.committees,
-        );
-      } catch (mockError) {
-        // If both real and mock fail, rethrow the original error
-        print('HybridSource: Mock data source also failed: $mockError');
-        throw Exception('Failed to get representative details: $e');
+        // Continue with regular mock handling for non-OpenStates IDs
+        // Get from mock source but preserve the ID format
+        try {
+          String lookupId = id;
+          if (id.startsWith('mock-')) {
+            lookupId = id.substring(5); // Remove 'mock-' prefix
+          }
+          
+          final mockRep = await mockDataSource.getRepresentativeById(lookupId);
+          
+          // Return with the original requested ID to maintain consistency
+          return RepresentativeModel(
+            id: id,
+            name: mockRep.name,
+            party: mockRep.party,
+            role: mockRep.role,
+            level: mockRep.level,
+            district: mockRep.district,
+            contact: mockRep.contact,
+            committees: mockRep.committees,
+          );
+        } catch (mockError) {
+          // If both real and mock fail, provide a more useful fallback
+          print('HybridSource: Mock data source also failed: $mockError');
+          
+          return RepresentativeModel(
+            id: id,
+            name: "Representative (Details Unavailable)",
+            party: "Unknown",
+            role: id.contains('federal') ? "Federal Representative" :
+                id.contains('state') ? "State Representative" : "Local Representative",
+            level: id.contains('federal') ? "federal" :
+                  id.contains('state') ? "state" : "local",
+            district: "",
+            contact: ContactModel(
+              office: "",
+              phone: "",
+              email: null,
+              website: "",
+              socialMedia: const SocialMediaModel(),
+            ),
+            committees: [],
+          );
+        }
       }
+    } catch (e) {
+      print('HybridSource: Unexpected error: $e');
+      // Final fallback
+      return RepresentativeModel(
+        id: id,
+        name: "Unknown Representative",
+        party: "Unknown",
+        role: "Representative",
+        level: "unknown",
+        district: "",
+        contact: ContactModel(
+          office: "",
+          phone: "",
+          email: null,
+          website: "",
+          socialMedia: const SocialMediaModel(),
+        ),
+        committees: [],
+      );
     }
   }
 }

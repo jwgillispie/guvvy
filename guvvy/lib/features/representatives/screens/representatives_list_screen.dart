@@ -30,10 +30,8 @@ class _RepresentativesListScreenState extends State<RepresentativesListScreen> w
       duration: const Duration(milliseconds: 400),
     );
 
-    // Load representatives when screen is mounted
-    context.read<RepresentativesBloc>().add(
-          const LoadRepresentatives(latitude: 37.7749, longitude: -122.4194),
-        );
+    // We don't load representatives here anymore - it should have been 
+    // loaded before navigating to this screen
   }
 
   @override
@@ -181,13 +179,17 @@ class _RepresentativesListScreenState extends State<RepresentativesListScreen> w
           }
 
           if (state is RepresentativesError) {
+            // Use the lastCoordinates from the bloc instead of hardcoded values
+            final bloc = context.read<RepresentativesBloc>();
             return ErrorMessageWidget(
               message: state.message,
               onRetry: () {
-                context.read<RepresentativesBloc>().add(
-                      const LoadRepresentatives(
-                          latitude: 37.7749, longitude: -122.4194),
-                    );
+                bloc.add(
+                  LoadRepresentatives(
+                    latitude: bloc.lastLatitude ?? 39.8283, 
+                    longitude: bloc.lastLongitude ?? -98.5795,
+                  ),
+                );
               },
             );
           }

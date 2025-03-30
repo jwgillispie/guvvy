@@ -155,17 +155,21 @@ class GeocodingService {
   // Reverse geocoding (coordinates to address)
   static Future<String> getAddressForCoordinates(double latitude, double longitude) async {
     // Use mock data in development if API key isn't configured
-    if (_mockEnabled && ApiKeys.googleMapsKey.isEmpty) {
+    final apiKey = ApiKeys.googleMapsKey;
+    
+    if (apiKey.isEmpty && _mockEnabled) {
+      print('GeocodingService: Using mock data because API key is missing');
       await Future.delayed(const Duration(milliseconds: 300)); // Simulate network delay
       return _getMockAddressForCoordinates(latitude, longitude);
     }
     
     try {
+      print('GeocodingService: Requesting address for $latitude, $longitude using Google API');
       final response = await _client.get(
         Uri.parse(
           'https://maps.googleapis.com/maps/api/geocode/json'
           '?latlng=$latitude,$longitude'
-          '&key=${ApiKeys.googleMapsKey}'
+          '&key=$apiKey'
         ),
       );
       
@@ -173,16 +177,22 @@ class GeocodingService {
         final data = json.decode(response.body);
         
         if (data['status'] == 'OK' && data['results'].isNotEmpty) {
-          return data['results'][0]['formatted_address'];
+          final formattedAddress = data['results'][0]['formatted_address'] as String;
+          print('GeocodingService: Found address: $formattedAddress');
+          return formattedAddress;
         } else {
+          print('GeocodingService: Geocoding error: ${data['status']}');
           throw Exception('Reverse geocoding error: ${data['status']}');
         }
       } else {
+        print('GeocodingService: Network error: ${response.statusCode}');
         throw Exception('Network error: ${response.statusCode}');
       }
     } catch (e) {
+      print('GeocodingService: Error: $e');
       // Fallback to mock data if there's an error and we're in development
       if (_mockEnabled) {
+        print('GeocodingService: Falling back to mock data');
         return _getMockAddressForCoordinates(latitude, longitude);
       }
       throw Exception('Failed to get address: $e');

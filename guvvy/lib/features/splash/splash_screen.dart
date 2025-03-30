@@ -1,7 +1,7 @@
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:guvvy/config/theme.dart';
+import 'package:guvvy/core/services/api_keys.dart';
 import 'package:guvvy/features/auth/domain/bloc/auth_bloc.dart';
 import 'package:guvvy/features/onboarding/data/services/onboarding_manager.dart';
 
@@ -17,6 +17,8 @@ class _SplashScreenState extends State<SplashScreen> {
   void initState() {
     super.initState();
     // For testing auth, we'll always go to login
+      _verifyApiKeys();
+
     _navigateToLogin();
   }
 
@@ -53,6 +55,54 @@ class _SplashScreenState extends State<SplashScreen> {
       case OnboardingStatus.complete:
         Navigator.of(context).pushReplacementNamed('/home');
         break;
+    }
+  }
+
+  Future<void> _verifyApiKeys() async {
+    final hasGoogleMapsKey = ApiKeys.googleMapsKey.isNotEmpty;
+    final hasOpenStatesKey = ApiKeys.openStatesKey.isNotEmpty;
+
+    if (!hasGoogleMapsKey || !hasOpenStatesKey) {
+      // Show a dialog if API keys are missing
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: const Text('API Keys Missing'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Some API keys are missing from your .env file:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                if (!hasGoogleMapsKey)
+                  const Text(
+                      '• Google Maps API Key (required for address search)'),
+                if (!hasOpenStatesKey)
+                  const Text(
+                      '• Open States API Key (used for state legislature data)'),
+                const SizedBox(height: 16),
+                const Text(
+                  'The app will fall back to mock data, but real data lookups will not work.',
+                  style: TextStyle(fontStyle: FontStyle.italic),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+                child: const Text('CONTINUE WITH MOCK DATA'),
+              ),
+            ],
+          ),
+        );
+      }
     }
   }
 

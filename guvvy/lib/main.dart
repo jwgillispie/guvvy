@@ -109,6 +109,9 @@ class AppRouter {
   }
 }
 
+// Update this in lib/main.dart
+// In the main() function:
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -131,10 +134,14 @@ void main() async {
     sharedPreferences: sharedPreferences,
   );
   
+  // Get the API key from .env file
+  final googleMapsApiKey = dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '';
+  print('Initializing with Google Maps API key: ${googleMapsApiKey.isEmpty ? 'NOT FOUND' : 'Found (Masked)'}');
+  
   // Use the real API data source with fallback to mock data
   final apiDataSource = RepresentativesApiDataSource(
     client: http.Client(),
-    civicInfoApiKey: dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '',
+    civicInfoApiKey: googleMapsApiKey,
   );
   
   final mockDataSource = MockRepresentativeDataSource();

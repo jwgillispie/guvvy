@@ -1,4 +1,4 @@
-// lib/features/representatives/presentation/bloc/representatives_bloc.dart
+// lib/features/representatives/domain/bloc/representatives_bloc.dart
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:guvvy/features/representatives/domain/bloc/representatives_event.dart';
 import 'package:guvvy/features/representatives/domain/bloc/representatives_state.dart';
@@ -15,6 +15,10 @@ class RepresentativesBloc
   final SaveRepresentative saveRepresentative;
   final GetSavedRepresentatives getSavedRepresentatives;
   final RemoveSavedRepresentative removeSavedRepresentative;
+  
+  // Add these properties to store the last used coordinates
+  double? lastLatitude;
+  double? lastLongitude;
 
   RepresentativesBloc({
     required this.getRepresentativesByLocation,
@@ -36,6 +40,11 @@ class RepresentativesBloc
     Emitter<RepresentativesState> emit,
   ) async {
     emit(RepresentativesLoading());
+    
+    // Store the coordinates for retry
+    lastLatitude = event.latitude;
+    lastLongitude = event.longitude;
+    
     try {
       final representatives = await getRepresentativesByLocation(
         event.latitude,
@@ -51,9 +60,6 @@ class RepresentativesBloc
       emit(RepresentativesError(e.toString()));
     }
   }
-
-// In lib/features/representatives/domain/bloc/representatives_bloc.dart
-// Make sure your _onLoadRepresentativeDetails handler is working correctly:
 
   Future<void> _onLoadRepresentativeDetails(
     LoadRepresentativeDetails event,
