@@ -1,6 +1,7 @@
 // lib/features/representatives/presentation/widgets/representatives_card.dart
 import 'package:flutter/material.dart';
 import 'package:guvvy/config/theme.dart';
+import 'package:guvvy/core/services/representative_image_service.dart';
 import 'package:guvvy/features/representatives/domain/entities/representative.dart';
 import 'package:guvvy/features/representatives/presentation/widgets/position_education_widget.dart';
 
@@ -35,11 +36,6 @@ class EnhancedRepresentativeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final partyColor = _getPartyColor(representative.party);
-    final initials = representative.name
-        .split(' ')
-        .map((name) => name.isNotEmpty ? name[0] : '')
-        .join('')
-        .toUpperCase();
 
     return Card(
       elevation: 3,
@@ -59,38 +55,12 @@ class EnhancedRepresentativeCard extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Profile image or initials with gradient background
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          partyColor.withOpacity(0.8),
-                          partyColor,
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: partyColor.withOpacity(0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Text(
-                        initials,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
+                  // Replace static avatar with dynamic image using our service
+                  RepresentativeImageService.getRepresentativeImage(
+                    name: representative.name,
+                    role: representative.role,
+                    party: representative.party,
+                    radius: 32,
                   ),
                   const SizedBox(width: 16),
 
