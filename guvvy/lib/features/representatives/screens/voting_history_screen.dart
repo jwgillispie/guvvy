@@ -1,3 +1,4 @@
+// lib/features/representatives/screens/voting_history_screen.dart
 import 'package:flutter/material.dart';
 import 'package:guvvy/config/theme.dart';
 import 'package:guvvy/core/services/mock_data_service.dart';
@@ -472,7 +473,7 @@ class _VotingHistoryScreenState extends State<VotingHistoryScreen> with SingleTi
     );
   }
   
-  Widget _buildVoteConsistencyCard(List<Map<String, dynamic>> votes) {
+Widget _buildVoteConsistencyCard(List<Map<String, dynamic>> votes) {
     // Calculate party-line vote consistency
     int partyLineVotes = 0;
     int crossPartyVotes = 0;
@@ -710,7 +711,7 @@ class _VotingHistoryScreenState extends State<VotingHistoryScreen> with SingleTi
         
         // Format the date
         final date = DateTime.parse(vote['date']);
-        final formattedDate = '${date.month}/${date.day}/${date.year}';
+        final formattedDate = DateFormat('MM/dd/yyyy').format(date);
         
         // Get categories
         final List<dynamic> categories = vote['categories'] ?? [];

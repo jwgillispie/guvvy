@@ -5,11 +5,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:guvvy/config/theme.dart';
 import 'package:guvvy/core/services/geocoding_service.dart';
+import 'package:guvvy/core/services/govtrack_service.dart';
+import 'package:guvvy/core/services/mock_data_service.dart';
 import 'package:guvvy/features/representatives/domain/bloc/representatives_bloc.dart';
 import 'package:guvvy/features/representatives/domain/bloc/representatives_event.dart';
 import 'package:guvvy/features/representatives/domain/bloc/representatives_state.dart';
 import 'package:guvvy/features/representatives/domain/entities/representative.dart';
-import 'package:guvvy/features/representatives/presentation/widgets/representative_activity.dart';
+import 'package:guvvy/features/representatives/screens/voting_history_screen.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -22,28 +24,36 @@ class RepresentativeDetailWithMap extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<RepresentativeDetailWithMap> createState() => _RepresentativeDetailWithMapState();
+  State<RepresentativeDetailWithMap> createState() =>
+      _RepresentativeDetailWithMapState();
 }
 
-class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMap>
+class _RepresentativeDetailWithMapState
+    extends State<RepresentativeDetailWithMap>
     with SingleTickerProviderStateMixin {
   final Completer<GoogleMapController> _mapController = Completer();
   late TabController _tabController;
   Set<Polygon> _districtPolygons = {};
   bool _isMapReady = false;
   bool _isLoadingDistrict = false;
+  final GovTrackService _govTrackService = GovTrackService();
+  List<Map<String, dynamic>> _votingHistory = [];
+  bool _isLoadingVotes = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    
+
     // Load representative data
     Future.microtask(() {
       context.read<RepresentativesBloc>().add(
-        LoadRepresentativeDetails(widget.representativeId),
-      );
+            LoadRepresentativeDetails(widget.representativeId),
+          );
     });
+
+    // Load voting history
+    _loadVotingHistory();
   }
 
   @override
@@ -52,29 +62,61 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
     super.dispose();
   }
 
+  Future<void> _loadVotingHistory() async {
+    setState(() {
+      _isLoadingVotes = true;
+    });
+
+    try {
+      final votingData =
+          await _govTrackService.getVotingHistory(widget.representativeId);
+
+      if (mounted) {
+        setState(() {
+          _votingHistory = votingData;
+          _isLoadingVotes = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() async {
+          _isLoadingVotes = false;
+          // Use mock data as fallback
+          _votingHistory = await _govTrackService.getMockVotingData();
+
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading voting data: $e')),
+        );
+      }
+    }
+  }
+
   // Initialize the map with district boundaries
   Future<void> _initializeMap(Representative representative) async {
     if (!_isMapReady) return;
-    
+
     setState(() {
       _isLoadingDistrict = true;
     });
-    
+
     try {
       // This is where you would fetch district boundaries from your backend
       // For now, we'll create a simple polygon as a placeholder
-      final Set<Polygon> polygons = await _fetchDistrictBoundaries(representative);
-      
+      final Set<Polygon> polygons =
+          await _fetchDistrictBoundaries(representative);
+
       if (mounted) {
         setState(() {
           _districtPolygons = polygons;
           _isLoadingDistrict = false;
         });
       }
-      
+
       // Get a point in the district (typically the representative's office)
       final LatLng districtCenter = await _getDistrictCenter(representative);
-      
+
       // Update camera to show the district
       if (mounted) {
         final controller = await _mapController.future;
@@ -98,16 +140,17 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
       }
     }
   }
-  
+
   // This would fetch actual district boundaries from backend API
-  Future<Set<Polygon>> _fetchDistrictBoundaries(Representative representative) async {
+  Future<Set<Polygon>> _fetchDistrictBoundaries(
+      Representative representative) async {
     // Mock implementation - in a real app, this would call an API
     await Future.delayed(const Duration(milliseconds: 800));
-    
+
     // Create a simple polygon as a placeholder based on rep's level
     final LatLng center = await _getDistrictCenter(representative);
     final Set<Polygon> polygons = {};
-    
+
     // Different polygons based on level (smaller for local, larger for federal)
     double size = 0.05;
     if (representative.level == 'state') {
@@ -115,7 +158,7 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
     } else if (representative.level == 'federal') {
       size = 0.2;
     }
-    
+
     polygons.add(
       Polygon(
         polygonId: PolygonId('district_${representative.id}'),
@@ -130,10 +173,10 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
         fillColor: _getPartyColor(representative.party).withOpacity(0.2),
       ),
     );
-    
+
     return polygons;
   }
-  
+
   // Get the center point of the district for the map
   Future<LatLng> _getDistrictCenter(Representative representative) async {
     // Try to geocode the representative's office address
@@ -147,7 +190,7 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
     } catch (e) {
       // If geocoding fails, fallback to default coordinates
     }
-    
+
     // Fallback coordinates based on level
     switch (representative.level) {
       case 'federal':
@@ -157,66 +200,22 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
         final stateCodes = {
           'AL': const LatLng(32.3792, -86.3077), // Alabama
           'AK': const LatLng(58.3019, -134.4197), // Alaska
-          'AZ': const LatLng(33.4484, -112.0740), // Arizona
-          'AR': const LatLng(34.7465, -92.2896), // Arkansas
+          // Add more states as needed
           'CA': const LatLng(38.5816, -121.4944), // California
-          'CO': const LatLng(39.7392, -104.9903), // Colorado
-          'CT': const LatLng(41.7658, -72.6734), // Connecticut
-          'DE': const LatLng(39.1582, -75.5244), // Delaware
-          'FL': const LatLng(30.4383, -84.2807), // Florida
-          'GA': const LatLng(33.7490, -84.3880), // Georgia
-          'HI': const LatLng(21.3069, -157.8583), // Hawaii
-          'ID': const LatLng(43.6150, -116.2023), // Idaho
-          'IL': const LatLng(39.7817, -89.6501), // Illinois
-          'IN': const LatLng(39.7684, -86.1581), // Indiana
-          'IA': const LatLng(41.5868, -93.6250), // Iowa
-          'KS': const LatLng(39.0483, -95.6775), // Kansas
-          'KY': const LatLng(38.1894, -84.8715), // Kentucky
-          'LA': const LatLng(30.4515, -91.1871), // Louisiana
-          'ME': const LatLng(44.3106, -69.7795), // Maine
-          'MD': const LatLng(38.9784, -76.4922), // Maryland
-          'MA': const LatLng(42.3601, -71.0589), // Massachusetts
-          'MI': const LatLng(42.7325, -84.5555), // Michigan
-          'MN': const LatLng(44.9537, -93.0900), // Minnesota
-          'MS': const LatLng(32.2988, -90.1848), // Mississippi
-          'MO': const LatLng(38.5767, -92.1735), // Missouri
-          'MT': const LatLng(46.5958, -112.0270), // Montana
-          'NE': const LatLng(40.8136, -96.7026), // Nebraska
-          'NV': const LatLng(39.1638, -119.7674), // Nevada
-          'NH': const LatLng(43.2081, -71.5376), // New Hampshire
-          'NJ': const LatLng(40.2206, -74.7597), // New Jersey
-          'NM': const LatLng(35.6870, -105.9378), // New Mexico
           'NY': const LatLng(42.6526, -73.7562), // New York
-          'NC': const LatLng(35.7796, -78.6382), // North Carolina
-          'ND': const LatLng(46.8083, -100.7837), // North Dakota
-          'OH': const LatLng(39.9612, -82.9988), // Ohio
-          'OK': const LatLng(35.4676, -97.5164), // Oklahoma
-          'OR': const LatLng(44.9429, -123.0351), // Oregon
-          'PA': const LatLng(40.2732, -76.8867), // Pennsylvania
-          'RI': const LatLng(41.8240, -71.4128), // Rhode Island
-          'SC': const LatLng(34.0007, -81.0348), // South Carolina
-          'SD': const LatLng(44.3683, -100.3510), // South Dakota
-          'TN': const LatLng(36.1627, -86.7816), // Tennessee
           'TX': const LatLng(30.2672, -97.7431), // Texas
-          'UT': const LatLng(40.7608, -111.8910), // Utah
-          'VT': const LatLng(44.2601, -72.5754), // Vermont
-          'VA': const LatLng(37.5407, -77.4360), // Virginia
-          'WA': const LatLng(47.0379, -122.9007), // Washington
-          'WV': const LatLng(38.3498, -81.6326), // West Virginia
-          'WI': const LatLng(43.0731, -89.4012), // Wisconsin
-          'WY': const LatLng(41.1400, -104.8202), // Wyoming
-          'DC': const LatLng(38.9072, -77.0369), // District of Columbia
+          'FL': const LatLng(30.4383, -84.2807), // Florida
         };
-        
+
         // Try to extract state code from district
         for (final stateCode in stateCodes.keys) {
           if (representative.district.contains(stateCode)) {
             return stateCodes[stateCode]!;
           }
         }
-        
+
         return const LatLng(39.8283, -98.5795); // Center of US
-      
+
       case 'local':
       default:
         return const LatLng(39.8283, -98.5795); // Center of US
@@ -239,10 +238,11 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
           );
         } else if (state is RepresentativeDetailsLoaded) {
           final representative = state.representative;
-          
+
           return Scaffold(
             body: NestedScrollView(
-              headerSliverBuilder: (BuildContext context, bool innerBoxIsScrolled) {
+              headerSliverBuilder:
+                  (BuildContext context, bool innerBoxIsScrolled) {
                 return [
                   // Enhanced app bar with profile image and gradient
                   SliverAppBar(
@@ -256,8 +256,10 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                             colors: [
-                              _getPartyColor(representative.party).withOpacity(0.8),
-                              _getPartyColor(representative.party).withOpacity(0.4),
+                              _getPartyColor(representative.party)
+                                  .withOpacity(0.8),
+                              _getPartyColor(representative.party)
+                                  .withOpacity(0.4),
                             ],
                           ),
                         ),
@@ -270,6 +272,8 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
                               child: Image.network(
                                 'https://api.placeholder.com/450/350',
                                 fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    const SizedBox(),
                               ),
                             ),
                             // Representative details
@@ -289,14 +293,16 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
                                           style: TextStyle(
                                             fontSize: 36,
                                             fontWeight: FontWeight.bold,
-                                            color: _getPartyColor(representative.party),
+                                            color: _getPartyColor(
+                                                representative.party),
                                           ),
                                         ),
                                       ),
                                       const SizedBox(width: 16),
                                       Expanded(
                                         child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
                                             Text(
                                               representative.name,
@@ -348,10 +354,12 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
                         ),
                         onPressed: () {
                           context.read<RepresentativesBloc>().add(
-                            state.isSaved
-                              ? UnsaveRepresentativeEvent(representative.id)
-                              : SaveRepresentativeEvent(representative.id),
-                          );
+                                state.isSaved
+                                    ? UnsaveRepresentativeEvent(
+                                        representative.id)
+                                    : SaveRepresentativeEvent(
+                                        representative.id),
+                              );
                         },
                       ),
                       IconButton(
@@ -369,7 +377,7 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
                       tabs: const [
                         Tab(text: 'Profile'),
                         Tab(text: 'Map'),
-                        Tab(text: 'Activity'),
+                        Tab(text: 'Voting'),
                       ],
                       indicatorColor: Colors.white,
                       labelColor: Colors.white,
@@ -382,12 +390,12 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
                 children: [
                   // Profile Tab
                   _buildProfileTab(representative),
-                  
+
                   // Map Tab
                   _buildMapTab(representative),
-                  
-                  // Activity Tab
-                  _buildActivityTab(representative),
+
+                  // Voting Tab
+                  _buildVotingTab(representative),
                 ],
               ),
             ),
@@ -410,7 +418,7 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
             ),
           );
         }
-        
+
         // Default loading state
         return const Scaffold(
           body: Center(child: CircularProgressIndicator()),
@@ -418,7 +426,7 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
       },
     );
   }
-  
+
   // Profile Tab Content
   Widget _buildProfileTab(Representative representative) {
     return SingleChildScrollView(
@@ -428,17 +436,17 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
         children: [
           // Party & district info card
           _buildInfoCard(representative),
-          
+
           // Contact information
           _buildContactSection(representative),
-          
+
           // Committee memberships
           _buildCommitteesSection(representative),
         ],
       ),
     );
   }
-  
+
   // Map Tab Content
   Widget _buildMapTab(Representative representative) {
     return Stack(
@@ -453,7 +461,7 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
             setState(() {
               _isMapReady = true;
             });
-            
+
             // Initialize district boundaries after map is ready
             _initializeMap(representative);
           },
@@ -463,7 +471,7 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
           compassEnabled: true,
           mapToolbarEnabled: false,
         ),
-        
+
         // Loading indicator for district boundaries
         if (_isLoadingDistrict)
           const Center(
@@ -481,7 +489,7 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
               ),
             ),
           ),
-        
+
         // Info panel
         Positioned(
           top: 16,
@@ -512,20 +520,276 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
       ],
     );
   }
-  
-  // Activity Tab Content
-  Widget _buildActivityTab(Representative representative) {
+
+  // Voting Tab Content
+  Widget _buildVotingTab(Representative representative) {
+    if (_isLoadingVotes) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    if (_votingHistory.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.how_to_vote,
+              size: 64,
+              color: Colors.grey.shade300,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No voting history available',
+              style: TextStyle(
+                fontSize: 18,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: _loadVotingHistory,
+              child: const Text('Refresh'),
+            ),
+          ],
+        ),
+      );
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          RepresentativeActivity(representative: representative, votingData: parsedJsonData,),
+          // Vote summary
+          _buildVoteSummaryCard(),
+
+          const SizedBox(height: 16),
+
+          // Recent votes
+          _buildRecentVotes(),
+
+          const SizedBox(height: 24),
+
+          // View all button
+          Center(
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => VotingHistoryScreen(
+                      representativeId: representative.id,
+                      votingData: _votingHistory,
+                    ),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _getPartyColor(representative.party),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+              ),
+              child: const Text('View Complete Voting History'),
+            ),
+          ),
         ],
       ),
     );
   }
-  
+
+  Widget _buildVoteSummaryCard() {
+    // Calculate voting statistics
+    final totalVotes = _votingHistory.length;
+    final yeaVotes =
+        _votingHistory.where((v) => v['yea_count'] > v['nay_count']).length;
+    final nayVotes =
+        _votingHistory.where((v) => v['yea_count'] < v['nay_count']).length;
+
+    final yeaPercent =
+        totalVotes > 0 ? (yeaVotes / totalVotes * 100).round() : 0;
+    final nayPercent =
+        totalVotes > 0 ? (nayVotes / totalVotes * 100).round() : 0;
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Voting Summary',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildStatColumn(
+                    'Total', totalVotes.toString(), GuvvyTheme.primary),
+                _buildStatColumn(
+                    'For', '$yeaVotes ($yeaPercent%)', GuvvyTheme.success),
+                _buildStatColumn(
+                    'Against', '$nayVotes ($nayPercent%)', GuvvyTheme.error),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            // Progress bar
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: totalVotes > 0 ? yeaVotes / totalVotes : 0,
+                minHeight: 10,
+                backgroundColor: GuvvyTheme.error.withOpacity(0.3),
+                valueColor: AlwaysStoppedAnimation<Color>(GuvvyTheme.success),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatColumn(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey.shade600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecentVotes() {
+    // Only show the 5 most recent votes
+    final recentVotes = _votingHistory.take(5).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Recent Votes',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 16),
+        ...recentVotes.map((vote) => _buildVoteItem(vote)).toList(),
+      ],
+    );
+  }
+
+  Widget _buildVoteItem(Map<String, dynamic> vote) {
+    final isYea = vote['yea_count'] > vote['nay_count'];
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Vote #${vote['rollnumber']}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: (isYea ? GuvvyTheme.success : GuvvyTheme.error)
+                        .withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    isYea ? 'Passed' : 'Failed',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: isYea ? GuvvyTheme.success : GuvvyTheme.error,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              vote['vote_question'],
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Date: ${DateTime.parse(vote['date']).toLocal().toString().split(' ')[0]}',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Yea: ${vote['yea_count']}',
+                    style: TextStyle(
+                      color: GuvvyTheme.success,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    'Nay: ${vote['nay_count']}',
+                    style: TextStyle(
+                      color: GuvvyTheme.error,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildInfoCard(representative) {
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -567,7 +831,8 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
               children: [
                 _buildStatItem('Bills Sponsored', '12'),
                 _buildStatItem('Years in Office', '4'),
-                _buildStatItem('Committees', representative.committees.length.toString()),
+                _buildStatItem(
+                    'Committees', representative.committees.length.toString()),
               ],
             ),
           ],
@@ -575,8 +840,9 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
       ),
     );
   }
-  
-  Widget _buildInfoColumn(String label, String value, Color color, IconData icon) {
+
+  Widget _buildInfoColumn(
+      String label, String value, Color color, IconData icon) {
     return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -607,7 +873,7 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
       ),
     );
   }
-  
+
   Widget _buildStatItem(String label, String value) {
     return Column(
       children: [
@@ -628,7 +894,7 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
       ],
     );
   }
-  
+
   Widget _buildContactSection(representative) {
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -653,7 +919,7 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
               ],
             ),
             const SizedBox(height: 16),
-            
+
             // Office address
             if (representative.contact.office.isNotEmpty)
               _buildContactItem(
@@ -662,7 +928,7 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
                 Icons.location_on,
                 onTap: () => _launchMaps(representative.contact.office),
               ),
-            
+
             // Phone
             if (representative.contact.phone.isNotEmpty)
               _buildContactItem(
@@ -671,7 +937,7 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
                 Icons.phone,
                 onTap: () => _makePhoneCall(representative.contact.phone),
               ),
-            
+
             // Email
             if (representative.contact.email != null)
               _buildContactItem(
@@ -680,7 +946,7 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
                 Icons.email,
                 onTap: () => _sendEmail(representative.contact.email!),
               ),
-            
+
             // Website
             if (representative.contact.website.isNotEmpty)
               _buildContactItem(
@@ -689,7 +955,7 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
                 Icons.language,
                 onTap: () => _launchUrl(representative.contact.website),
               ),
-            
+
             // Social media
             if (representative.contact.socialMedia.twitter != null ||
                 representative.contact.socialMedia.facebook != null)
@@ -697,7 +963,8 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
                 padding: const EdgeInsets.only(top: 16),
                 child: Row(
                   children: [
-                    const Icon(Icons.share, size: 20, color: GuvvyTheme.primary),
+                    const Icon(Icons.share,
+                        size: 20, color: GuvvyTheme.primary),
                     const SizedBox(width: 12),
                     const Text(
                       'Social Media:',
@@ -706,7 +973,8 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
                     const Spacer(),
                     if (representative.contact.socialMedia.twitter != null)
                       IconButton(
-                        icon: const Icon(Icons.south_america, color: Colors.blue),
+                        icon:
+                            const Icon(Icons.south_america, color: Colors.blue),
                         onPressed: () => _launchUrl(
                           'https://twitter.com/${representative.contact.socialMedia.twitter}',
                         ),
@@ -726,8 +994,9 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
       ),
     );
   }
-  
-  Widget _buildContactItem(String label, String value, IconData icon, {VoidCallback? onTap}) {
+
+  Widget _buildContactItem(String label, String value, IconData icon,
+      {VoidCallback? onTap}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: InkWell(
@@ -767,12 +1036,12 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
       ),
     );
   }
-  
+
   Widget _buildCommitteesSection(representative) {
     if (representative.committees.isEmpty) {
       return const SizedBox.shrink();
     }
-    
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 2,
@@ -796,13 +1065,15 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
               ],
             ),
             const SizedBox(height: 16),
-            ...representative.committees.map((committee) => _buildCommitteeItem(committee)).toList(),
+            ...representative.committees
+                .map((committee) => _buildCommitteeItem(committee))
+                .toList(),
           ],
         ),
       ),
     );
   }
-  
+
   Widget _buildCommitteeItem(String committee) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -847,7 +1118,7 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
       ),
     );
   }
-  
+
   void _showContactOptions(BuildContext context, representative) {
     showModalBottomSheet(
       context: context,
@@ -868,7 +1139,7 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
                 ),
               ),
               const SizedBox(height: 24),
-              
+
               // Call option
               if (representative.contact.phone.isNotEmpty)
                 ListTile(
@@ -883,7 +1154,7 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
                     _makePhoneCall(representative.contact.phone);
                   },
                 ),
-              
+
               // Email option
               if (representative.contact.email != null)
                 ListTile(
@@ -898,7 +1169,7 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
                     _sendEmail(representative.contact.email!);
                   },
                 ),
-              
+
               // Website option
               if (representative.contact.website.isNotEmpty)
                 ListTile(
@@ -919,7 +1190,7 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
       },
     );
   }
-  
+
   // Get color based on political party
   Color _getPartyColor(String party) {
     switch (party.toLowerCase()) {
@@ -933,13 +1204,13 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
         return Colors.grey;
     }
   }
-  
+
   // URL Launcher methods
   Future<void> _makePhoneCall(String phoneNumber) async {
     final Uri phoneUri = Uri(scheme: 'tel', path: phoneNumber);
     await _launchUri(phoneUri);
   }
-  
+
   Future<void> _sendEmail(String email) async {
     final Uri emailUri = Uri(
       scheme: 'mailto',
@@ -950,20 +1221,20 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
     );
     await _launchUri(emailUri);
   }
-  
+
   Future<void> _launchMaps(String address) async {
     final Uri mapsUri = Uri.parse(
       'https://maps.google.com/?q=${Uri.encodeComponent(address)}',
     );
     await _launchUri(mapsUri);
   }
-  
+
   Future<void> _launchUrl(String url) async {
     // Check if the URL has a scheme
     final Uri uri = Uri.parse(url.contains('://') ? url : 'https://$url');
     await _launchUri(uri);
   }
-  
+
   Future<void> _launchUri(Uri uri) async {
     try {
       if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
