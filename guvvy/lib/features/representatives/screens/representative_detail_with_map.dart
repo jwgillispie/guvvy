@@ -520,7 +520,7 @@ class _RepresentativeDetailWithMapState extends State<RepresentativeDetailWithMa
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          RepresentativeActivity(representative: representative),
+          RepresentativeActivity(representative: representative, votingData: parsedJsonData,),
         ],
       ),
     );

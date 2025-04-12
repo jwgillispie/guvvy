@@ -1,14 +1,16 @@
-// lib/features/representatives/screens/voting_history_screen.dart
 import 'package:flutter/material.dart';
 import 'package:guvvy/config/theme.dart';
 import 'package:guvvy/core/services/mock_data_service.dart';
+import 'package:intl/intl.dart';
 
 class VotingHistoryScreen extends StatefulWidget {
   final String? representativeId;
+  final List<Map<String, dynamic>> votingData;
 
   const VotingHistoryScreen({
     Key? key, 
-    this.representativeId, // Optional: if provided, shows votes for a specific rep
+    this.representativeId,
+    required this.votingData,
   }) : super(key: key);
 
   @override
@@ -20,7 +22,6 @@ class _VotingHistoryScreenState extends State<VotingHistoryScreen> with SingleTi
   String _selectedCategoryFilter = 'All';
   late TabController _tabController;
   
-  // Define vote categories 
   final List<String> _categories = [
     'All',
     'Economy',
@@ -47,24 +48,26 @@ class _VotingHistoryScreenState extends State<VotingHistoryScreen> with SingleTi
   
   @override
   Widget build(BuildContext context) {
-    // Get mock voting data
-    final votingHistory = widget.representativeId != null 
-        ? MockDataService.getMockVotingHistoryWithCategories(widget.representativeId!)
-        : MockDataService.getMockVotingHistoryWithCategories("1"); // Default voting history
+    // Transform the voting data to match our expected format
+    final transformedVotes = widget.votingData.map((vote) {
+      return {
+        'billId': 'H.R. ${vote['rollnumber']}',
+        'billTitle': vote['vote_question'] ?? 'Vote on Legislation',
+        'description': _getVoteDescription(vote),
+        'date': vote['date'],
+        'result': _getVoteResult(vote),
+        'categories': _determineCategories(vote),
+        'withParty': _isWithParty(vote),
+      };
+    }).toList();
 
-    // Filter options
     final voteTypeFilters = ['All', 'Yea', 'Nay', 'Present'];
     
-    // Apply filters 
-    final filteredVotes = votingHistory.where((vote) {
-      // Apply vote type filter
+    final filteredVotes = transformedVotes.where((vote) {
       final passesVoteFilter = _selectedVoteFilter == 'All' || 
                               vote['result'] == _selectedVoteFilter;
-                              
-      // Apply category filter
       final passesCategoryFilter = _selectedCategoryFilter == 'All' || 
                                   vote['categories'].contains(_selectedCategoryFilter);
-                                  
       return passesVoteFilter && passesCategoryFilter;
     }).toList();
 
@@ -83,15 +86,44 @@ class _VotingHistoryScreenState extends State<VotingHistoryScreen> with SingleTi
       body: TabBarView(
         controller: _tabController,
         children: [
-          // Timeline Tab
-          _buildTimelineTab(votingHistory, filteredVotes, voteTypeFilters),
-          
-          // Statistics Tab
-          _buildStatisticsTab(votingHistory),
+          _buildTimelineTab(transformedVotes, filteredVotes, voteTypeFilters),
+          _buildStatisticsTab(transformedVotes),
         ],
       ),
     );
   }
+
+  String _getVoteDescription(Map<String, dynamic> vote) {
+    final question = vote['vote_question'] ?? 'Legislative Vote';
+    final result = vote['vote_result'] ?? 'Completed';
+    return '$question - Result: $result';
+  }
+
+  String _getVoteResult(Map<String, dynamic> vote) {
+    final yeaCount = vote['yea_count'] ?? 0;
+    final nayCount = vote['nay_count'] ?? 0;
+    return yeaCount > nayCount ? 'Yea' : 'Nay';
+  }
+
+  List<String> _determineCategories(Map<String, dynamic> vote) {
+    final question = (vote['vote_question'] ?? '').toLowerCase();
+    if (question.contains('speaker')) return ['Leadership'];
+    if (question.contains('budget') || question.contains('spending')) return ['Economy'];
+    if (question.contains('health') || question.contains('care')) return ['Healthcare'];
+    if (question.contains('environment') || question.contains('climate')) return ['Environment'];
+    if (question.contains('education')) return ['Education'];
+    if (question.contains('infrastructure') || question.contains('transportation')) return ['Infrastructure'];
+    if (question.contains('foreign') || question.contains('international')) return ['Foreign Policy'];
+    if (question.contains('defense') || question.contains('military')) return ['Defense'];
+    if (question.contains('social') || question.contains('rights')) return ['Social Issues'];
+    return ['Legislation'];
+  }
+
+  bool _isWithParty(Map<String, dynamic> vote) {
+    // This is a simplified version - in reality you'd compare with party majority
+    return vote['nominate_mid_1'] != null && vote['nominate_mid_1'] > 0;
+  }
+
   
   Widget _buildTimelineTab(List<Map<String, dynamic>> allVotes, List<Map<String, dynamic>> filteredVotes, List<String> voteTypeFilters) {
     return Column(

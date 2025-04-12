@@ -8,34 +8,34 @@ import 'package:guvvy/core/config/app_config.dart';
 class GeocodingService {
   static final _client = http.Client();
   static const _mockEnabled = AppConfig.environment == 'development';
-  
+
   // Get place suggestions based on user input
-  static Future<List<GeocodingResult>> searchAddressSuggestions(String query) async {
+  static Future<List<GeocodingResult>> searchAddressSuggestions(
+      String query) async {
     if (query.isEmpty) return [];
-    
+
     // Use mock data in development if API key isn't configured
     if (_mockEnabled && ApiKeys.googleMapsKey.isEmpty) {
-      await Future.delayed(const Duration(milliseconds: 500)); // Simulate network delay
+      await Future.delayed(
+          const Duration(milliseconds: 500)); // Simulate network delay
       return _getMockSuggestions(query);
     }
-    
+
     try {
       final response = await _client.get(
-        Uri.parse(
-          'https://maps.googleapis.com/maps/api/place/autocomplete/json'
-          '?input=${Uri.encodeComponent(query)}'
-          '?types=address'
-          '&components=country:us'
-          '&key=${ApiKeys.googleMapsKey}'
-        ),
+        Uri.parse('https://maps.googleapis.com/maps/api/place/autocomplete/json'
+            '?input=${Uri.encodeComponent(query)}'
+            '?types=address'
+            '&components=country:us'
+            '&key=${ApiKeys.googleMapsKey}'),
       );
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        
+
         if (data['status'] == 'OK') {
           final List<dynamic> predictions = data['predictions'];
-          
+
           return predictions.map((prediction) {
             final structured = prediction['structured_formatting'];
             return GeocodingResult(
@@ -61,32 +61,31 @@ class GeocodingService {
       throw Exception('Failed to get address suggestions: $e');
     }
   }
-  
+
   // Get coordinates for a place ID
   static Future<Location> getCoordinatesForPlace(String placeId) async {
     // Use mock data in development if API key isn't configured
     if (_mockEnabled && ApiKeys.googleMapsKey.isEmpty) {
-      await Future.delayed(const Duration(milliseconds: 300)); // Simulate network delay
+      await Future.delayed(
+          const Duration(milliseconds: 300)); // Simulate network delay
       return _getMockLocationForPlaceId(placeId);
     }
-    
+
     try {
       final response = await _client.get(
-        Uri.parse(
-          'https://maps.googleapis.com/maps/api/place/details/json'
-          '?place_id=$placeId'
-          '&fields=geometry,formatted_address'
-          '&key=${ApiKeys.googleMapsKey}'
-        ),
+        Uri.parse('https://maps.googleapis.com/maps/api/place/details/json'
+            '?place_id=$placeId'
+            '&fields=geometry,formatted_address'
+            '&key=${ApiKeys.googleMapsKey}'),
       );
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        
+
         if (data['status'] == 'OK' && data['result'] != null) {
           final result = data['result'];
           final location = result['geometry']['location'];
-          
+
           return Location(
             latitude: location['lat'],
             longitude: location['lng'],
@@ -106,32 +105,31 @@ class GeocodingService {
       throw Exception('Failed to get coordinates: $e');
     }
   }
-  
+
   // Get coordinates for an address string
   static Future<Location> getCoordinatesForAddress(String address) async {
     // Use mock data in development if API key isn't configured
     if (_mockEnabled && ApiKeys.googleMapsKey.isEmpty) {
-      await Future.delayed(const Duration(milliseconds: 300)); // Simulate network delay
+      await Future.delayed(
+          const Duration(milliseconds: 300)); // Simulate network delay
       return _getMockLocationForAddress(address);
     }
-    
+
     try {
       final response = await _client.get(
-        Uri.parse(
-          'https://maps.googleapis.com/maps/api/geocode/json'
-          '?address=${Uri.encodeComponent(address)}'
-          '&components=country:us'
-          '&key=${ApiKeys.googleMapsKey}'
-        ),
+        Uri.parse('https://maps.googleapis.com/maps/api/geocode/json'
+            '?address=${Uri.encodeComponent(address)}'
+            '&components=country:us'
+            '&key=${ApiKeys.googleMapsKey}'),
       );
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        
+
         if (data['status'] == 'OK' && data['results'].isNotEmpty) {
           final result = data['results'][0];
           final location = result['geometry']['location'];
-          
+
           return Location(
             latitude: location['lat'],
             longitude: location['lng'],
@@ -151,33 +149,36 @@ class GeocodingService {
       throw Exception('Failed to get coordinates: $e');
     }
   }
-  
+
   // Reverse geocoding (coordinates to address)
-  static Future<String> getAddressForCoordinates(double latitude, double longitude) async {
+  static Future<String> getAddressForCoordinates(
+      double latitude, double longitude) async {
     // Use mock data in development if API key isn't configured
     final apiKey = ApiKeys.googleMapsKey;
-    
+
     if (apiKey.isEmpty && _mockEnabled) {
       print('GeocodingService: Using mock data because API key is missing');
-      await Future.delayed(const Duration(milliseconds: 300)); // Simulate network delay
+      await Future.delayed(
+          const Duration(milliseconds: 300)); // Simulate network delay
       return _getMockAddressForCoordinates(latitude, longitude);
     }
-    
+
     try {
-      print('GeocodingService: Requesting address for $latitude, $longitude using Google API');
+      print(
+          'GeocodingService: Requesting address for $latitude, $longitude using Google API');
       final response = await _client.get(
-        Uri.parse(
-          'https://maps.googleapis.com/maps/api/geocode/json'
-          '?latlng=$latitude,$longitude'
-          '&key=$apiKey'
-        ),
+        Uri.parse('https://maps.googleapis.com/maps/api/geocode/json'
+            '?latlng=$latitude,$longitude'
+            '&key=$apiKey'),
       );
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        
+        print(data['status']);
+
         if (data['status'] == 'OK' && data['results'].isNotEmpty) {
-          final formattedAddress = data['results'][0]['formatted_address'] as String;
+          final formattedAddress =
+              data['results'][0]['formatted_address'] as String;
           print('GeocodingService: Found address: $formattedAddress');
           return formattedAddress;
         } else {
@@ -198,9 +199,9 @@ class GeocodingService {
       throw Exception('Failed to get address: $e');
     }
   }
-  
+
   // ====== Mock data methods for development ======
-  
+
   // Mock address suggestions
   static List<GeocodingResult> _getMockSuggestions(String query) {
     final List<GeocodingResult> allSuggestions = [
@@ -235,16 +236,16 @@ class GeocodingService {
         secondaryText: 'Redmond, WA 98052, USA',
       ),
     ];
-    
+
     // Filter suggestions based on query
     if (query.isEmpty) return [];
-    
+
     query = query.toLowerCase();
     return allSuggestions
         .where((s) => s.description.toLowerCase().contains(query))
         .toList();
   }
-  
+
   // Mock location for place ID
   static Location _getMockLocationForPlaceId(String placeId) {
     switch (placeId) {
@@ -252,7 +253,8 @@ class GeocodingService {
         return const Location(
           latitude: 38.8977,
           longitude: -77.0365,
-          formattedAddress: '1600 Pennsylvania Avenue NW, Washington, DC 20500, USA',
+          formattedAddress:
+              '1600 Pennsylvania Avenue NW, Washington, DC 20500, USA',
         );
       case 'mock-2': // Empire State Building
         return const Location(
@@ -287,19 +289,22 @@ class GeocodingService {
         );
     }
   }
-  
+
   // Mock location for address string
   static Location _getMockLocationForAddress(String address) {
     address = address.toLowerCase();
-    
+
     // Check for known addresses in our mock data
-    if (address.contains('white house') || address.contains('pennsylvania avenue')) {
+    if (address.contains('white house') ||
+        address.contains('pennsylvania avenue')) {
       return const Location(
         latitude: 38.8977,
         longitude: -77.0365,
-        formattedAddress: '1600 Pennsylvania Avenue NW, Washington, DC 20500, USA',
+        formattedAddress:
+            '1600 Pennsylvania Avenue NW, Washington, DC 20500, USA',
       );
-    } else if (address.contains('empire state') || address.contains('fifth avenue')) {
+    } else if (address.contains('empire state') ||
+        address.contains('fifth avenue')) {
       return const Location(
         latitude: 40.7484,
         longitude: -73.9857,
@@ -332,9 +337,10 @@ class GeocodingService {
       );
     }
   }
-  
+
   // Mock address for coordinates
-  static String _getMockAddressForCoordinates(double latitude, double longitude) {
+  static String _getMockAddressForCoordinates(
+      double latitude, double longitude) {
     // White House
     if (_isNearCoordinate(latitude, longitude, 38.8977, -77.0365, 0.01)) {
       return '1600 Pennsylvania Avenue NW, Washington, DC 20500, USA';
@@ -364,15 +370,10 @@ class GeocodingService {
       return 'Latitude: ${latitude.toStringAsFixed(4)}, Longitude: ${longitude.toStringAsFixed(4)}';
     }
   }
-  
+
   // Helper to check if coordinates are near each other
   static bool _isNearCoordinate(
-    double lat1, 
-    double lng1, 
-    double lat2, 
-    double lng2, 
-    double tolerance
-  ) {
+      double lat1, double lng1, double lat2, double lng2, double tolerance) {
     return (lat1 - lat2).abs() < tolerance && (lng1 - lng2).abs() < tolerance;
   }
 }
@@ -382,7 +383,7 @@ class GeocodingResult {
   final String description;
   final String primaryText;
   final String secondaryText;
-  
+
   GeocodingResult({
     required this.placeId,
     required this.description,

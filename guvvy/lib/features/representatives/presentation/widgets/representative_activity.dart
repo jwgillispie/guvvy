@@ -1,29 +1,24 @@
-// lib/features/representatives/presentation/widgets/representative_activity.dart
 import 'package:flutter/material.dart';
 import 'package:guvvy/config/theme.dart';
-import 'package:guvvy/core/services/mock_data_service.dart';
 import 'package:guvvy/features/representatives/domain/entities/representative.dart';
+import 'package:intl/intl.dart';
 
 class RepresentativeActivity extends StatelessWidget {
   final Representative representative;
+  final List<Map<String, dynamic>> votingData;
 
   const RepresentativeActivity({
     Key? key,
     required this.representative,
+    required this.votingData,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    // Use mock voting history data
-    final activities = MockDataService.getMockVotingHistory(representative.id)
+    // Transform and limit the voting data
+    final activities = votingData
       .take(3) // Just show the 3 most recent votes
-      .map((vote) => {
-        'title': '${vote['billId']} - ${vote['billTitle']}',
-        'date': _formatDate(DateTime.parse(vote['date'])),
-        'type': 'vote',
-        'result': vote['result'],
-        'description': vote['description'],
-      })
+      .map((vote) => _transformVoteToActivity(vote))
       .toList();
 
     return Padding(
@@ -48,7 +43,10 @@ class RepresentativeActivity extends StatelessWidget {
                     Navigator.pushNamed(
                       context, 
                       '/voting-history',
-                      arguments: representative.id,
+                      arguments: {
+                        'representativeId': representative.id,
+                        'votingData': votingData,
+                      },
                     );
                   },
                   icon: const Icon(Icons.history, size: 16),
@@ -58,7 +56,6 @@ class RepresentativeActivity extends StatelessWidget {
             ),
           ),
           
-          // Activity cards
           if (activities.isEmpty)
             Card(
               elevation: 1,
@@ -150,7 +147,10 @@ class RepresentativeActivity extends StatelessWidget {
                       Navigator.pushNamed(
                         context, 
                         '/voting-history',
-                        arguments: representative.id,
+                        arguments: {
+                          'representativeId': representative.id,
+                          'votingData': votingData,
+                        },
                       );
                     },
                   );
@@ -162,34 +162,42 @@ class RepresentativeActivity extends StatelessWidget {
     );
   }
 
+  Map<String, dynamic> _transformVoteToActivity(Map<String, dynamic> vote) {
+    final date = DateTime.parse(vote['date']);
+    return {
+      'title': 'Vote #${vote['rollnumber']}',
+      'date': _formatDate(date),
+      'type': 'vote',
+      'result': _getVoteResult(vote),
+      'description': vote['vote_question'] ?? 'Legislative Vote',
+    };
+  }
+
+  String _getVoteResult(Map<String, dynamic> vote) {
+    final yeaCount = vote['yea_count'] ?? 0;
+    final nayCount = vote['nay_count'] ?? 0;
+    return yeaCount > nayCount ? 'Yea' : 'Nay';
+  }
+
   String _formatDate(DateTime date) {
     final now = DateTime.now();
     final difference = now.difference(date);
     
-    if (difference.inDays < 1) {
-      return 'Today';
-    } else if (difference.inDays == 1) {
-      return 'Yesterday';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays} days ago';
-    } else if (difference.inDays < 30) {
+    if (difference.inDays < 1) return 'Today';
+    if (difference.inDays == 1) return 'Yesterday';
+    if (difference.inDays < 7) return '${difference.inDays} days ago';
+    if (difference.inDays < 30) {
       final weeks = (difference.inDays / 7).floor();
       return '$weeks ${weeks == 1 ? 'week' : 'weeks'} ago';
-    } else {
-      return '${date.month}/${date.day}/${date.year}';
     }
+    return DateFormat('MM/dd/yyyy').format(date);
   }
 
   Color _getVoteColor(String? vote) {
     switch (vote) {
-      case 'Yea':
-        return GuvvyTheme.success;
-      case 'Nay':
-        return GuvvyTheme.error;
-      case 'Present':
-        return GuvvyTheme.warning;
-      default:
-        return Colors.grey;
+      case 'Yea': return GuvvyTheme.success;
+      case 'Nay': return GuvvyTheme.error;
+      default: return Colors.grey;
     }
   }
 }
