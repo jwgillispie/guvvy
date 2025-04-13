@@ -1,32 +1,22 @@
 // lib/main.dart
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:guvvy/features/onboarding/screens/address_input_screen.dart';
-import 'package:guvvy/features/profile/presentation/screens/profile_screen.dart';
-import 'package:guvvy/features/representatives/data/datasources/mock_representative_datasource.dart';
-import 'package:guvvy/features/representatives/data/datasources/representatives_remote_datasource.dart';
-import 'package:guvvy/features/representatives/screens/representative_detail_with_map.dart';
-import 'package:guvvy/features/search/screens/address_search_test_screen.dart';
-import 'package:guvvy/features/search/screens/map_search_screen.dart';
-import 'package:guvvy/features/splash/splash_screen.dart';
-import 'package:http/http.dart' as http;
+import 'package:guvvy/config/custom_page_routes.dart';
+import 'package:guvvy/config/theme.dart';
+import 'package:guvvy/core/services/api_keys.dart';
 import 'package:guvvy/features/auth/data/repositories/auth_repository.dart';
 import 'package:guvvy/features/auth/domain/bloc/auth_bloc.dart';
 import 'package:guvvy/features/auth/presentation/screens/login_screen.dart';
 import 'package:guvvy/features/auth/presentation/screens/password_reset_screen.dart';
 import 'package:guvvy/features/auth/presentation/screens/signup_screen.dart';
-import 'package:guvvy/features/representatives/screens/onboarding_screen.dart';
-import 'package:guvvy/features/users/data/repositories/user_repository_factory.dart';
-import 'package:guvvy/features/users/domain/bloc/user_bloc.dart';
-import 'package:guvvy/features/users/domain/repositories/user_repository.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:guvvy/config/custom_page_routes.dart';
-import 'package:guvvy/config/theme.dart';
-import 'package:guvvy/features/onboarding/data/services/onboarding_manager.dart';
-import 'package:guvvy/firebase_options.dart';
+import 'package:guvvy/features/landing/landing_page.dart';
+import 'package:guvvy/features/onboarding/screens/address_input_screen.dart';
+import 'package:guvvy/features/representatives/data/datasources/mock_representative_datasource.dart';
 import 'package:guvvy/features/representatives/data/datasources/representatives_local_datasource.dart';
+import 'package:guvvy/features/representatives/data/datasources/representatives_remote_datasource.dart';
 import 'package:guvvy/features/representatives/data/repositories/representatives_repository_impl.dart';
 import 'package:guvvy/features/representatives/domain/bloc/representatives_bloc.dart';
 import 'package:guvvy/features/representatives/domain/repositories/representatives_repository.dart';
@@ -35,82 +25,19 @@ import 'package:guvvy/features/representatives/domain/usecases/get_representativ
 import 'package:guvvy/features/representatives/domain/usecases/get_saved_representatives.dart';
 import 'package:guvvy/features/representatives/domain/usecases/remove_saved_representative.dart';
 import 'package:guvvy/features/representatives/domain/usecases/save_representative.dart';
-import 'package:guvvy/features/representatives/screens/representatives_details_screen.dart';
-import 'package:guvvy/features/representatives/screens/representatives_list_screen.dart';
 import 'package:guvvy/features/representatives/screens/main_navigation_screen.dart';
+import 'package:guvvy/features/representatives/screens/onboarding_screen.dart';
+import 'package:guvvy/features/representatives/screens/representative_detail_with_map.dart';
 import 'package:guvvy/features/search/data/repositories/search_repository_impl.dart';
 import 'package:guvvy/features/search/domain/bloc/search_bloc.dart';
 import 'package:guvvy/features/search/domain/search_repository.dart';
-
-// Updated AppRouter class for main.dart
-class AppRouter {
-  static Route<dynamic> generateRoute(RouteSettings settings) {
-    switch (settings.name) {
-      case '/':
-        return FadeScaleRoute(
-          page: const SplashScreen(),
-        );
-      case '/login':
-        return FadeScaleRoute(
-          page: const LoginScreen(),
-        );
-      case '/signup':
-        return FadeScaleRoute(
-          page: const SignUpScreen(),
-        );
-      case '/reset-password':
-        return FadeScaleRoute(
-          page: const PasswordResetScreen(),
-        );
-      case '/onboarding':
-        return FadeScaleRoute(
-          page: const OnboardingScreen(),
-        );
-      case '/address-input':
-        return SlideUpRoute(
-          page: const AddressInputScreen(),
-        );
-      case '/home':
-        return FadeScaleRoute(
-          page: const MainNavigationScreen(),
-        );
-      case '/map-search':
-        return FadeScaleRoute(
-          page: const MapSearchScreen(),
-        );
-      case '/representatives':
-        return FadeScaleRoute(
-          page: const RepresentativesListScreen(),
-        );
-      case '/representative-details':
-        final String representativeId = settings.arguments as String;
-        return SlideUpRoute(
-          page: RepresentativeDetailWithMap(
-            representativeId: representativeId,
-          ),
-        );
-      case '/test-address-search':
-        return MaterialPageRoute(
-          builder: (_) => const AddressSearchTestScreen(),
-        );
-      case '/profile':
-        return FadeScaleRoute(
-          page: const UserProfileScreen(),
-        );
-      default:
-        return MaterialPageRoute(
-          builder: (_) => Scaffold(
-            body: Center(
-              child: Text('No route defined for ${settings.name}'),
-            ),
-          ),
-        );
-    }
-  }
-}
-
-// Update this in lib/main.dart
-// In the main() function:
+import 'package:guvvy/features/splash/splash_screen.dart';
+import 'package:guvvy/features/users/data/repositories/user_repository_factory.dart';
+import 'package:guvvy/features/users/domain/bloc/user_bloc.dart';
+import 'package:guvvy/features/users/domain/repositories/user_repository.dart';
+import 'package:guvvy/firebase_options.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -129,14 +56,8 @@ void main() async {
   // Create Auth Repository
   final authRepository = AuthRepository();
 
-  // Create API data sources
-  final representativesLocalDataSource = RepresentativesLocalDataSourceImpl(
-    sharedPreferences: sharedPreferences,
-  );
-  
   // Get the API key from .env file
   final googleMapsApiKey = dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '';
-  print('Initializing with Google Maps API key: ${googleMapsApiKey.isEmpty ? 'NOT FOUND' : 'Found (Masked)'}');
   
   // Use the real API data source with fallback to mock data
   final apiDataSource = RepresentativesApiDataSource(
@@ -149,6 +70,11 @@ void main() async {
   final representativesRemoteDataSource = HybridRepresentativesDataSource(
     apiDataSource: apiDataSource, 
     mockDataSource: mockDataSource,
+  );
+
+  // Create API data sources
+  final representativesLocalDataSource = RepresentativesLocalDataSourceImpl(
+    sharedPreferences: sharedPreferences,
   );
 
   runApp(MyApp(
@@ -175,6 +101,17 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Check if we're running on the web
+    if (kIsWeb) {
+      return MaterialApp(
+        title: 'Guvvy - Know Your Representatives',
+        theme: GuvvyTheme.light(),
+        home: const LandingPage(),
+        debugShowCheckedModeBanner: false,
+      );
+    }
+
+    // If not on web, show the regular mobile app with all dependencies
     return MultiRepositoryProvider(
       providers: [
         // Auth Repository
@@ -250,7 +187,7 @@ class MyApp extends StatelessWidget {
         child: BlocBuilder<AuthBloc, AuthState>(
           builder: (context, authState) {
             return MaterialApp(
-              title: 'Civic Engagement App',
+              title: 'Guvvy',
               theme: GuvvyTheme.light(),
               onGenerateRoute: AppRouter.generateRoute,
               initialRoute: '/',
@@ -260,5 +197,56 @@ class MyApp extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+// AppRouter class from original main.dart
+class AppRouter {
+  static Route<dynamic> generateRoute(RouteSettings settings) {
+    switch (settings.name) {
+      case '/':
+        return FadeScaleRoute(
+          page: const SplashScreen(),
+        );
+      case '/login':
+        return FadeScaleRoute(
+          page: const LoginScreen(),
+        );
+      case '/signup':
+        return FadeScaleRoute(
+          page: const SignUpScreen(),
+        );
+      case '/reset-password':
+        return FadeScaleRoute(
+          page: const PasswordResetScreen(),
+        );
+      case '/onboarding':
+        return FadeScaleRoute(
+          page: const OnboardingScreen(),
+        );
+      case '/address-input':
+        return SlideUpRoute(
+          page: const AddressInputScreen(),
+        );
+      case '/home':
+        return FadeScaleRoute(
+          page: const MainNavigationScreen(),
+        );
+      case '/representative-details':
+        final String representativeId = settings.arguments as String;
+        return SlideUpRoute(
+          page: RepresentativeDetailWithMap(
+            representativeId: representativeId,
+          ),
+        );
+      default:
+        return MaterialPageRoute(
+          builder: (_) => Scaffold(
+            body: Center(
+              child: Text('No route defined for ${settings.name}'),
+            ),
+          ),
+        );
+    }
   }
 }
